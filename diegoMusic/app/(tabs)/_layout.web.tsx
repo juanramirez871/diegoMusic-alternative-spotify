@@ -21,7 +21,7 @@ const NAV_ITEMS = [
   { route: '/settings',  name: 'gearshape.fill',  labelKey: 'tabs.settings' },
 ] as const;
 
-function NavItem({ item, isActive }: { item: typeof NAV_ITEMS[number]; isActive: boolean }) {
+function NavItem({ item, isActive, onNavigate }: { item: typeof NAV_ITEMS[number]; isActive: boolean; onNavigate: () => void }) {
   const router = useRouter();
   const { t } = useLanguage();
   const [hovered, setHovered] = useState(false);
@@ -29,7 +29,7 @@ function NavItem({ item, isActive }: { item: typeof NAV_ITEMS[number]; isActive:
 
   return (
     <Pressable
-      onPress={() => router.push(item.route as any)}
+      onPress={() => { onNavigate(); router.push(item.route as any); }}
       // @ts-ignore — web-only props
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -49,7 +49,7 @@ function NavItem({ item, isActive }: { item: typeof NAV_ITEMS[number]; isActive:
   );
 }
 
-function Sidebar() {
+function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -59,7 +59,7 @@ function Sidebar() {
           const isActive = item.route === '/'
             ? pathname === '/' || pathname === '/index'
             : pathname.startsWith(item.route);
-          return <NavItem key={item.route} item={item} isActive={isActive} />;
+          return <NavItem key={item.route} item={item} isActive={isActive} onNavigate={onNavigate} />;
         })}
       </View>
     </View>
@@ -102,7 +102,7 @@ export default function TabLayout() {
     <View style={styles.container}>
       <TopBar />
       <View style={styles.body}>
-        <Sidebar />
+        <Sidebar onNavigate={() => setIsMaximized(false)} />
         <View style={styles.content}>
           <Tabs
             screenOptions={{
