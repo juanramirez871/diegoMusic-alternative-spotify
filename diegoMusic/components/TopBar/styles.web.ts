@@ -11,6 +11,9 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
     zIndex: 100,
+    borderBottomLeftRadius: 15,
+    borderBottomRightRadius: 15,
+    marginBottom: 4,
   },
   left: {
     flex: 1,

@@ -72,7 +72,6 @@ export const panel = StyleSheet.create({
   },
   lineActive: {
     color: '#fff',
-    fontSize: 22,
   },
   plain: {
     color: 'rgba(255,255,255,0.5)',
@@ -157,7 +156,6 @@ export const full = StyleSheet.create({
   },
   lineActive: {
     color: '#fff',
-    fontSize: 24,
   },
   plain: {
     color: 'rgba(255,255,255,0.75)',

@@ -161,11 +161,6 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
   }, [isLoading, isSeeking, progress]);
 
   const currentLineIndex = lyrics.getCurrentLineIndex(isSeeking ? seekProgress : progress);
-  useEffect(() => {
-    if (currentLineIndex >= 0 && lyricsScrollRef.current) {
-      lyricsScrollRef.current.scrollTo({ y: currentLineIndex * 48, animated: true });
-    }
-  }, [currentLineIndex]);
 
   const playIconAnimatedStyle = useAnimatedStyle(() => ({
     opacity: 1 - playTint.value * 0.6,

@@ -197,7 +197,6 @@ export const styles = StyleSheet.create({
   },
   lyricLineActive: {
     color: '#fff',
-    fontSize: 20,
   },
   lyricPlain: {
     color: 'rgba(255,255,255,0.7)',
