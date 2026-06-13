@@ -170,7 +170,7 @@ export const useAudioPlayer = (
     }
 
     const currentTimeMs = (status.currentTime ?? 0) * 1000;
-    const actualPosition = currentTimeMs;
+    const actualPosition = currentTimeMs + seekOffsetRef.current;
     if (now - lastProgressUpdateRef.current >= 200) {
       lastProgressUpdateRef.current = now;
       setProgress(actualPosition);
@@ -763,6 +763,32 @@ export const useAudioPlayer = (
     }
   };
 
+  const seekToWebStream = (position: number) => {
+    const song = currentSongRef.current;
+    if (!song) return false;
+
+    try {
+      lastSeekTimeRef.current = Date.now();
+      const isPlayingNow = isPlayingRef.current;
+      const startSeconds = Math.max(0, Math.floor(position / 1000));
+
+      unloadCurrentSound();
+      const streamUrl = `${youtubeService.getAudioDownloadUrl(song.url, startSeconds)}&_=${Date.now()}`;
+      const fresh = createAudioPlayer({ uri: streamUrl });
+      attachStatusListener(fresh);
+      if (isPlayingNow) fresh.play();
+
+      soundRef.current = fresh;
+      seekOffsetRef.current = position;
+      setProgress(position);
+      return true;
+    }
+    catch (error) {
+      console.error('Error seeking web stream:', error);
+      return false;
+    }
+  };
+
   const seekTo = async (position: number) => {
     if (!soundRef.current || !currentSong) return;
     lastSeekTimeRef.current = Date.now();
@@ -770,6 +796,11 @@ export const useAudioPlayer = (
     try {
       if (localFileUriRef.current && !isUsingLocalFileRef.current) {
         const success = await switchToLocalFile(position);
+        if (success) return;
+      }
+
+      if (Platform.OS === 'web' && !isUsingLocalFileRef.current) {
+        const success = seekToWebStream(position);
         if (success) return;
       }
 

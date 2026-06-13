@@ -14,6 +14,7 @@ import {
 import { getInnertube } from "../utils/innertube.js";
 import { existsSync, statSync, unlinkSync } from "fs";
 import { execSync } from "child_process";
+import ffmpegPath from "ffmpeg-static";
 
 const ipv4Agent = new https.Agent({ family: 4 });
 const parseCookiesTxt = async (cookiesPath) => {
@@ -229,7 +230,81 @@ export const getCachedAudioFile = (url, startSeconds = 0) => {
   return null;
 };
 
-export const streamAudioToResponse = (url, res) => {
+
+const streamAudioFromOffset = (url, res, startSeconds) => {
+  const videoId = extractVideoId(url);
+  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+  const ytdlp = spawn("yt-dlp", [
+    ...getYtdlpBaseArgs(),
+    videoUrl,
+    "-f", "ba[ext=m4a]/ba/best",
+    "-o", "-",
+  ], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, PATH: process.env.PATH } });
+
+  const ffmpeg = spawn(ffmpegPath, [
+    "-hide_banner", "-loglevel", "error",
+    "-ss", String(startSeconds),
+    "-i", "pipe:0",
+    "-vn",
+    "-c:a", "aac",
+    "-b:a", "160k",
+    "-f", "adts",
+    "pipe:1",
+  ], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, PATH: process.env.PATH } });
+
+  ytdlp.stderr.on("data", (d) => console.log("[yt-dlp:seek]", d.toString().trim()));
+  ffmpeg.stderr.on("data", (d) => console.log("[ffmpeg:seek]", d.toString().trim()));
+
+  ytdlp.stdout.pipe(ffmpeg.stdin);
+  ytdlp.stdout.on("error", () => {});
+  ffmpeg.stdin.on("error", () => {});
+
+  let headersSent = false;
+  ffmpeg.stdout.on("data", (chunk) => {
+    if (!headersSent) {
+      headersSent = true;
+      if (!res.headersSent) {
+        res.writeHead(200, {
+          "Content-Type": "audio/aac",
+          "Transfer-Encoding": "chunked",
+          "Cache-Control": "no-store",
+        });
+      }
+    }
+    if (!res.write(chunk)) ffmpeg.stdout.pause();
+  });
+
+  res.on("drain", () => ffmpeg.stdout.resume());
+
+  ffmpeg.on("close", (code) => {
+    if (code !== 0 && !headersSent && !res.headersSent) {
+      res.status(500).json({ error: `ffmpeg exited with code ${code}` });
+      return;
+    }
+    try { res.end(); } catch {}
+  });
+
+  const cleanup = () => {
+    try { ytdlp.kill("SIGKILL"); } catch {}
+    try { ffmpeg.kill("SIGKILL"); } catch {}
+  };
+  ffmpeg.on("error", (err) => {
+    console.error("[ffmpeg:seek] error:", err);
+    if (!headersSent && !res.headersSent) res.status(500).json({ error: err.message });
+    else { try { res.end(); } catch {} }
+    cleanup();
+  });
+  ytdlp.on("error", (err) => console.error("[yt-dlp:seek] error:", err));
+  res.on("close", cleanup);
+};
+
+export const streamAudioToResponse = (url, res, startSeconds = 0) => {
+  if (startSeconds > 0) {
+    streamAudioFromOffset(url, res, startSeconds);
+    return;
+  }
+
   const videoId = extractVideoId(url);
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const args = [
