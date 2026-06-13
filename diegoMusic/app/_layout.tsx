@@ -53,6 +53,18 @@ function RootLayoutContent() {
   }, [isLoggedIn, currentSong?.id, isPlaying, togglePlayPause, playNext, playPrevious]);
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const defaultTitle = 'Diego Music';
+    if (isPlaying && currentSong) {
+      const artist = currentSong.channel?.name;
+      document.title = artist ? `${currentSong.title} • ${artist}` : currentSong.title;
+    }
+    else document.title = defaultTitle;
+
+    return () => { document.title = defaultTitle; };
+  }, [isPlaying, currentSong?.id, currentSong?.title, currentSong?.channel?.name]);
+
+  useEffect(() => {
     if (!user) { settingsApplied.current = false; return; }
     if (settingsApplied.current) return;
     settingsApplied.current = true;
@@ -60,6 +72,7 @@ function RootLayoutContent() {
       if (settings?.language && ['en', 'es', 'ja'].includes(settings.language)) {
         setLocale(settings.language as Locale);
       }
+      
       if (settings?.videoQuality && ['low', 'medium', 'high'].includes(settings.videoQuality)) {
         setVideoQuality(settings.videoQuality as VideoQuality);
       }
