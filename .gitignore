@@ -3,3 +3,10 @@ backend/node_modules
 backend/.env
 backend/dist
 backend/cookies.txt
+backend/cache/
+backend/certs/
+backend/temp/
+.claude/
+CLAUDE.md
+diegoMusic/ios/DiegoMusic.xcworkspace/xcuserdata/
+diegoMusic/ios/.xcode.env.local
