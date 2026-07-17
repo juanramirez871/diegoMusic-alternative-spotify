@@ -55,14 +55,14 @@ function RootLayoutContent() {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const defaultTitle = 'Diego Music';
-    if (isPlaying && currentSong) {
+    if (currentSong) {
       const artist = currentSong.channel?.name;
       document.title = artist ? `${currentSong.title} • ${artist}` : currentSong.title;
     }
     else document.title = defaultTitle;
 
     return () => { document.title = defaultTitle; };
-  }, [isPlaying, currentSong?.id, currentSong?.title, currentSong?.channel?.name]);
+  }, [currentSong?.id, currentSong?.title, currentSong?.channel?.name]);
 
   useEffect(() => {
     if (!user) { settingsApplied.current = false; return; }
