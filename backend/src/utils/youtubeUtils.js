@@ -12,7 +12,78 @@ export const pickPopularSortFilter = (sortFilters) => {
   return sortFilters.find((f) => String(f).toLowerCase().includes("popular"));
 };
 
+const parseDurationTextToSeconds = (text) => {
+  const parts = String(text ?? "").trim().split(":").map(Number);
+  if (parts.length === 0 || parts.some(Number.isNaN)) return null;
+  return parts.reduce((acc, p) => acc * 60 + p, 0);
+};
+
+const getLockupDurationText = (video) => {
+  const overlays = video?.content_image?.overlays ?? [];
+  for (const overlay of overlays) {
+    for (const badge of overlay?.badges ?? []) {
+      const text = String(badge?.text ?? "").trim();
+      if (/^\d+(:\d{2})+$/.test(text)) return text;
+    }
+  }
+  return "";
+};
+
+export const isShortVideo = (video) => {
+  const type = String(video?.type ?? "");
+  if (type === "ReelItem" || type === "ShortsLockupView") return true;
+
+  if (type === "LockupView") {
+    if (String(video?.content_type ?? "") === "SHORT") return true;
+    const thumb = video?.content_image?.image?.[0];
+    if (thumb?.width && thumb?.height && thumb.height > thumb.width) return true;
+    const seconds = parseDurationTextToSeconds(getLockupDurationText(video));
+    return seconds !== null && seconds > 0 && seconds <= 61;
+  }
+
+  const endpointUrl =
+    video?.endpoint?.metadata?.url ??
+    video?.on_tap_endpoint?.metadata?.url ?? "";
+  if (String(endpointUrl).includes("/shorts/")) return true;
+
+  const thumb = video?.best_thumbnail ?? video?.thumbnails?.[0];
+  if (thumb?.width && thumb?.height && thumb.height > thumb.width) return true;
+
+  const seconds = typeof video?.duration?.seconds === "number" && video.duration.seconds > 0
+    ? video.duration.seconds
+    : parseDurationTextToSeconds(video?.duration?.text);
+  if (seconds !== null && seconds > 0 && seconds <= 61) return true;
+
+  return false;
+};
+
+export const isShortChannelItem = (item) => {
+  const seconds = Number(item?.lengthSeconds ?? 0);
+  if (seconds > 0 && seconds <= 61) return true;
+
+  const thumb = Array.isArray(item?.videoThumbnails) ? item.videoThumbnails[0] : null;
+  if (thumb?.width && thumb?.height && thumb.height > thumb.width) return true;
+
+  return false;
+};
+
 export const mapInnertubeVideoToChannelItem = (video) => {
+
+  if (video?.type === "LockupView") {
+    const thumbs = Array.isArray(video?.content_image?.image) ? video.content_image.image : [];
+    return {
+      videoId: video?.content_id ?? "",
+      title: video?.metadata?.title?.text ?? "",
+      author: "",
+      authorId: "",
+      durationText: getLockupDurationText(video),
+      videoThumbnails: thumbs.map((t) => ({
+        url: t?.url ?? "",
+        width: t?.width ?? 0,
+        height: t?.height ?? 0,
+      })),
+    };
+  }
 
   const thumbs = Array.isArray(video?.thumbnails) ? video.thumbnails : [];
   return {

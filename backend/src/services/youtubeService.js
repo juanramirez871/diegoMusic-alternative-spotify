@@ -8,7 +8,9 @@ import {
   extractVideoId,
   pickPopularSortFilter,
   mapInnertubeVideoToChannelItem,
-  resolveChannelId
+  resolveChannelId,
+  isShortVideo,
+  isShortChannelItem
 } from "../utils/youtubeUtils.js";
 import { getInnertube } from "../utils/innertube.js";
 import { existsSync, statSync, unlinkSync, mkdirSync, readdirSync, renameSync, utimesSync } from "fs";
@@ -143,7 +145,7 @@ const searchChannelVideos = async (channelId) => {
     const popularFilter = pickPopularSortFilter(videosTab.sort_filters);
     const sortedFeed = popularFilter ? await videosTab.applySort(popularFilter) : videosTab;
 
-    const items = sortedFeed.videos.slice(0, 40).map((video) => {
+    const items = sortedFeed.videos.filter((v) => !isShortVideo(v)).slice(0, 40).map((video) => {
       const mapped = mapInnertubeVideoToChannelItem(video);
       if (!mapped.author || mapped.author === "N/A") mapped.author = channelInfo.name;
       if (!mapped.authorId || mapped.authorId === "N/A") mapped.authorId = channelInfo.id;
@@ -162,7 +164,7 @@ const searchChannelVideos = async (channelId) => {
     try
     {
       const videos = await ytch.getChannelVideos({ channelId: resolvedChannelId, sortBy });
-      const items = Array.isArray(videos?.items) ? videos.items : [];
+      const items = (Array.isArray(videos?.items) ? videos.items : []).filter((v) => !isShortChannelItem(v));
       if (items.length > 0) {
         return items.map(v => ({
           ...v,
@@ -181,6 +183,7 @@ const searchChannelVideos = async (channelId) => {
     const query = channelInfo.name && channelInfo.name !== "N/A" ? channelInfo.name : resolvedChannelId;
     const searchResults = await yt.search(query, { type: "video" });
     const candidates = (searchResults?.videos || []).filter((video) => {
+      if (isShortVideo(video)) return false;
       const authorId = video?.author?.id || "";
       const authorName = (video?.author?.name || "").toLowerCase();
       return authorId === resolvedChannelId || (channelInfo.name && channelInfo.name !== "N/A" && authorName.includes(channelInfo.name.toLowerCase()));
@@ -195,7 +198,7 @@ const searchChannelVideos = async (channelId) => {
 
     if (mapped.length > 0) return mapped;
 
-    const broadMapped = (searchResults?.videos || []).slice(0, 40).map((video) => {
+    const broadMapped = (searchResults?.videos || []).filter((v) => !isShortVideo(v)).slice(0, 40).map((video) => {
       const item = mapInnertubeVideoToChannelItem(video);
       if (!item.author || item.author === "N/A") item.author = channelInfo.name;
       if (!item.authorId || item.authorId === "N/A") item.authorId = channelInfo.id;
