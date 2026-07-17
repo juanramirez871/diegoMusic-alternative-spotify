@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { IconSymbol } from '@/components/IconSymbol';
 import Song from "@/components/Song";
 import { youtubeService } from "@/services/youtubeService";
-import { usePlayback } from "@/context/PlayerContext";
+import { usePlayback, useQueue } from "@/context/PlayerContext";
 import { Skeleton } from "@/components/Skeleton";
 import { GenreOverlayProps, SongData } from "@/interfaces/Song";
 import { useLanguage } from "@/context/LanguageContext";
@@ -38,6 +38,7 @@ export const GenreOverlay: React.FC<GenreOverlayProps> = ({
 }) => {
 
   const { playSong } = usePlayback();
+  const { setQueue, isShuffle } = useQueue();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const [results, setResults] = useState<SongData[]>([]);
@@ -69,20 +70,26 @@ export const GenreOverlay: React.FC<GenreOverlayProps> = ({
     }
   }, [isVisible, genreTitle, channelId]);
 
-  const handleSelectSong = async (song: SongData) => {
+  const handleSelectSong = (song: SongData) => {
+    const immediateQueue = results.length > 0
+      ? [song, ...results.filter(s => s.id !== song.id)]
+      : undefined;
+    playSong(song, immediateQueue);
+
     if (song.channel?.id) {
-      try {
-        const channelVideos = await youtubeService.getChannelVideos(song.channel.id);
-        const filteredQueue = channelVideos.filter(s => s.id !== song.id);
-        playSong(song, [song, ...filteredQueue]);
-      }
-      catch (error) {
-        console.error("Error fetching channel videos for queue:", error);
-        playSong(song);
-      }
-    }
-    else {
-      playSong(song, results);
+      youtubeService.getChannelVideos(song.channel.id)
+        .then((channelVideos) => {
+          const filteredQueue = channelVideos.filter(s => s.id !== song.id);
+          if (filteredQueue.length === 0) return;
+          if (isShuffle) {
+            for (let i = filteredQueue.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [filteredQueue[i], filteredQueue[j]] = [filteredQueue[j], filteredQueue[i]];
+            }
+          }
+          setQueue([song, ...filteredQueue]);
+        })
+        .catch((error) => console.warn("Error fetching channel videos for queue:", error));
     }
   };
 
