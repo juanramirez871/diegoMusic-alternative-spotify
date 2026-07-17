@@ -1,7 +1,6 @@
 import ytch from "yt-channel-info";
 import { spawn } from "child_process";
-import { unlink, readFile } from "fs/promises";
-import os from "os";
+import { readFile } from "fs/promises";
 import fetch from "node-fetch";
 import https from "https";
 import path from "path";
@@ -12,7 +11,7 @@ import {
   resolveChannelId
 } from "../utils/youtubeUtils.js";
 import { getInnertube } from "../utils/innertube.js";
-import { existsSync, statSync, unlinkSync } from "fs";
+import { existsSync, statSync, unlinkSync, mkdirSync, readdirSync, renameSync, utimesSync } from "fs";
 import { execSync } from "child_process";
 import ffmpegPath from "ffmpeg-static";
 
@@ -33,31 +32,75 @@ const parseCookiesTxt = async (cookiesPath) => {
 
 const downloadCache = new Map();
 const urlCache = new Map();
-const URL_CACHE_TTL = 5 * 60 * 1000;
+const URL_CACHE_TTL = 4 * 60 * 60 * 1000;
 
+const AUDIO_CACHE_DIR = path.join(process.cwd(), "cache", "audio");
+const AUDIO_CACHE_MAX_BYTES = 3 * 1024 * 1024 * 1024;
+mkdirSync(AUDIO_CACHE_DIR, { recursive: true });
 
-const getYtdlpBaseArgs = () => {
+for (const file of readdirSync(AUDIO_CACHE_DIR)) {
+  if (file.endsWith(".download")) {
+    try { unlinkSync(path.join(AUDIO_CACHE_DIR, file)); } catch {}
+  }
+}
+
+const evictAudioCacheIfNeeded = () => {
+  try {
+    const entries = readdirSync(AUDIO_CACHE_DIR)
+      .map((name) => {
+        const filePath = path.join(AUDIO_CACHE_DIR, name);
+        try {
+          const stats = statSync(filePath);
+          return { filePath, size: stats.size, mtimeMs: stats.mtimeMs };
+        } catch { return null; }
+      })
+      .filter(Boolean);
+
+    let total = entries.reduce((sum, e) => sum + e.size, 0);
+    if (total <= AUDIO_CACHE_MAX_BYTES) return;
+
+    entries.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    for (const entry of entries) {
+      if (total <= AUDIO_CACHE_MAX_BYTES) break;
+      try {
+        unlinkSync(entry.filePath);
+        total -= entry.size;
+        console.log(`[audio-cache] Evicted: ${path.basename(entry.filePath)}`);
+      } catch {}
+    }
+  } catch (error) {
+    console.warn("[audio-cache] Error en evicción:", error.message);
+  }
+};
+
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
+
+let cachedNodePath = null;
+const getNodePath = () => {
+  if (!cachedNodePath) {
+    try {
+      cachedNodePath = execSync("which node").toString().trim();
+    } catch {
+      console.warn("[yt-dlp] Node no encontrado, usando ruta por defecto");
+      cachedNodePath = "/usr/local/bin/node";
+    }
+  }
+  return cachedNodePath;
+};
+
+const getYtdlpBaseArgs = (playerClient = "android,web") => {
 
   const cookiesPath = path.join(process.cwd(), "cookies.txt");
-  const hasCookies = existsSync(cookiesPath);
-  
-  let nodePath = "/usr/local/bin/node";
-  try {
-    nodePath = execSync("which node").toString().trim();
-  } catch (e) {
-    console.warn("[yt-dlp] Node no encontrado, usando ruta por defecto");
-  }
 
   const args = [
     "--no-playlist",
     "--no-part",
-    "--js-runtimes", `node:${nodePath}`,
-    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "--extractor-args", "youtube:player_client=android,web",
+    "--js-runtimes", `node:${getNodePath()}`,
+    "--user-agent", USER_AGENT,
+    "--extractor-args", `youtube:player_client=${playerClient}`,
   ];
 
-  if (hasCookies) {
-    console.log("[yt-dlp] Usando cookies");
+  if (existsSync(cookiesPath)) {
     args.push("--cookies", cookiesPath);
   }
 
@@ -169,6 +212,93 @@ const searchChannelVideos = async (channelId) => {
 };
 
 
+const runYtdlpGetUrl = (videoUrl, playerClient, { useCookies = true } = {}) => new Promise((resolve, reject) => {
+  const args = [
+    ...(useCookies
+      ? getYtdlpBaseArgs(playerClient)
+      : ["--no-playlist", "--no-part", "--force-ipv4", "--extractor-args", `youtube:player_client=${playerClient}`]),
+    '-f', 'ba[ext=m4a]/ba/best',
+    '-g',
+    videoUrl,
+  ];
+
+  let stdout = '';
+  let stderr = '';
+  const proc = spawn('yt-dlp', args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PATH: process.env.PATH }
+  });
+
+  proc.stdout.on('data', (d) => (stdout += d.toString()));
+  proc.stderr.on('data', (d) => (stderr += d.toString()));
+  proc.on('close', (code) => {
+    if (code === 0) {
+      const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const firstUrl = lines.find(l => /^https?:\/\//i.test(l));
+      if (!firstUrl) return reject(new Error('No direct URL obtained'));
+      resolve(firstUrl);
+    } else {
+      reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+    }
+  });
+  proc.on('error', reject);
+});
+
+const getGoogleVideoHeaders = async (extraHeaders = {}) => {
+  const cookiesPath = path.join(process.cwd(), "cookies.txt");
+  const cookieHeader = existsSync(cookiesPath) ? await parseCookiesTxt(cookiesPath) : "";
+  return {
+    "User-Agent": USER_AGENT,
+    "Referer": "https://www.youtube.com/",
+    "Origin": "https://www.youtube.com",
+    ...(cookieHeader && { "Cookie": cookieHeader }),
+    ...extraHeaders,
+  };
+};
+
+const validateDirectUrl = async (directUrl) => {
+  try {
+    const headers = await getGoogleVideoHeaders({ "Range": "bytes=0-1" });
+    const resp = await fetch(directUrl, { headers, agent: ipv4Agent });
+    if (resp.status !== 200 && resp.status !== 206) return false;
+    await resp.arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const INNERTUBE_CLIENTS = ["WEB", "IOS"];
+
+const getAudioUrlViaInnertube = async (videoId) => {
+  const yt = await getInnertube();
+
+  for (const client of INNERTUBE_CLIENTS) {
+    try {
+      const info = await yt.getBasicInfo(videoId, client);
+      const format = info.chooseFormat({ type: "audio", quality: "best" });
+      if (!format) continue;
+
+      let directUrl = format.url;
+      if (!directUrl) {
+        try { directUrl = await format.decipher(yt.session.player); } catch { continue; }
+      }
+      if (!directUrl) continue;
+
+      if (await validateDirectUrl(directUrl)) {
+        const mimeType = format.mime_type?.split(";")[0]?.trim() || "audio/mp4";
+        console.log(`[getAudioUrlViaInnertube] URL válida vía cliente ${client}: ${videoId}`);
+        return { url: directUrl, mimeType };
+      }
+      console.warn(`[getAudioUrlViaInnertube] URL de cliente ${client} no válida (403?): ${videoId}`);
+    } catch (error) {
+      console.warn(`[getAudioUrlViaInnertube] Cliente ${client} falló (${error.message}): ${videoId}`);
+    }
+  }
+
+  throw new Error("Innertube: ningún cliente produjo URL válida");
+};
+
 export const getAudioDirectUrl = async (url) => {
   const videoId = extractVideoId(url);
   const cacheKey = `audio:${videoId}`;
@@ -180,39 +310,32 @@ export const getAudioDirectUrl = async (url) => {
   }
 
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const args = [
-    ...getYtdlpBaseArgs(),
-    '-f', 'ba[ext=m4a]/ba/best',
-    '-g',
-    videoUrl,
+  let result = null;
+
+  const attempts = [
+    getAudioUrlViaInnertube(videoId).then((r) => {
+      console.log(`[getAudioDirectUrl] Ganó Innertube: ${videoId}`);
+      return { ...r, validated: true };
+    }),
+    (async () => {
+      const directUrl = await runYtdlpGetUrl(videoUrl, "android_vr", { useCookies: false });
+      if (!(await validateDirectUrl(directUrl))) throw new Error("URL de android_vr no válida");
+      console.log(`[getAudioDirectUrl] Ganó yt-dlp android_vr: ${videoId}`);
+      return { url: directUrl, mimeType: "audio/mp4", validated: true };
+    })(),
   ];
 
-  const directUrl = await new Promise((resolve, reject) => {
-    let stdout = '';
-    let stderr = '';
-    const proc = spawn('yt-dlp', args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PATH: process.env.PATH }
-    });
+  try {
+    result = await Promise.any(attempts);
+  } catch {
+    console.warn(`[getAudioDirectUrl] Innertube y android_vr fallaron, último recurso android,web: ${videoId}`);
+    const directUrl = await runYtdlpGetUrl(videoUrl, "android,web");
+    const validated = await validateDirectUrl(directUrl);
+    result = { url: directUrl, mimeType: 'audio/mp4', validated };
+  }
 
-    proc.stdout.on('data', (d) => (stdout += d.toString()));
-    proc.stderr.on('data', (d) => (stderr += d.toString()));
-    proc.on('close', (code) => {
-      if (code === 0) {
-        const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        const firstUrl = lines.find(l => /^https?:\/\//i.test(l));
-        if (!firstUrl) return reject(new Error('No direct URL obtained'));
-        resolve(firstUrl);
-      } else {
-        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
-      }
-    });
-    proc.on('error', reject);
-  });
-
-  const result = { url: directUrl, mimeType: 'audio/mp4' };
   urlCache.set(cacheKey, { data: result, timestamp: Date.now() });
-  console.log(`[getAudioDirectUrl] URL obtenida para ${videoId}`);
+  console.log(`[getAudioDirectUrl] URL obtenida para ${videoId} (validated: ${result.validated})`);
   return result;
 };
 
@@ -220,11 +343,13 @@ export const getAudioDirectUrl = async (url) => {
 export const getCachedAudioFile = (url, startSeconds = 0) => {
   const videoId = extractVideoId(url);
   const cacheKey = `${videoId}-${startSeconds}`;
-  const tempFile = path.join(os.tmpdir(), `ytdlp-${cacheKey}.m4a`);
-  if (existsSync(tempFile)) {
-    const size = statSync(tempFile).size;
+  const cacheFile = path.join(AUDIO_CACHE_DIR, `${cacheKey}.m4a`);
+  if (existsSync(cacheFile)) {
+    const size = statSync(cacheFile).size;
     if (size > 5000 && !downloadCache.has(cacheKey)) {
-      return { path: tempFile, size };
+      const now = new Date();
+      try { utimesSync(cacheFile, now, now); } catch {}
+      return { path: cacheFile, size };
     }
   }
   return null;
@@ -235,7 +360,13 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
   const videoId = extractVideoId(url);
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-  const ytdlp = spawn("yt-dlp", [
+  const fullFileCached = getCachedAudioFile(url, 0);
+  const inputArgs = fullFileCached
+    ? ["-ss", String(startSeconds), "-i", fullFileCached.path]
+    : ["-ss", String(startSeconds), "-i", "pipe:0"];
+  if (fullFileCached) console.log(`[ffmpeg:seek] Usando archivo cacheado: ${fullFileCached.path}`);
+
+  const ytdlp = fullFileCached ? null : spawn("yt-dlp", [
     ...getYtdlpBaseArgs(),
     videoUrl,
     "-f", "ba[ext=m4a]/ba/best",
@@ -244,8 +375,7 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
 
   const ffmpeg = spawn(ffmpegPath, [
     "-hide_banner", "-loglevel", "error",
-    "-ss", String(startSeconds),
-    "-i", "pipe:0",
+    ...inputArgs,
     "-vn",
     "-c:a", "aac",
     "-b:a", "160k",
@@ -253,11 +383,11 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
     "pipe:1",
   ], { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, PATH: process.env.PATH } });
 
-  ytdlp.stderr.on("data", (d) => console.log("[yt-dlp:seek]", d.toString().trim()));
+  ytdlp?.stderr.on("data", (d) => console.log("[yt-dlp:seek]", d.toString().trim()));
   ffmpeg.stderr.on("data", (d) => console.log("[ffmpeg:seek]", d.toString().trim()));
 
-  ytdlp.stdout.pipe(ffmpeg.stdin);
-  ytdlp.stdout.on("error", () => {});
+  ytdlp?.stdout.pipe(ffmpeg.stdin);
+  ytdlp?.stdout.on("error", () => {});
   ffmpeg.stdin.on("error", () => {});
 
   let headersSent = false;
@@ -286,7 +416,7 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
   });
 
   const cleanup = () => {
-    try { ytdlp.kill("SIGKILL"); } catch {}
+    try { ytdlp?.kill("SIGKILL"); } catch {}
     try { ffmpeg.kill("SIGKILL"); } catch {}
   };
   ffmpeg.on("error", (err) => {
@@ -295,14 +425,57 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
     else { try { res.end(); } catch {} }
     cleanup();
   });
-  ytdlp.on("error", (err) => console.error("[yt-dlp:seek] error:", err));
+  ytdlp?.on("error", (err) => console.error("[yt-dlp:seek] error:", err));
   res.on("close", cleanup);
 };
 
-export const streamAudioToResponse = (url, res, startSeconds = 0) => {
+const proxyDirectAudio = async (res, directUrl, mimeType, rangeHeader) => {
+  const headers = await getGoogleVideoHeaders(rangeHeader ? { "Range": rangeHeader } : {});
+  const upstream = await fetch(directUrl, { headers, agent: ipv4Agent });
+  if (!upstream.ok || !upstream.body) {
+    throw new Error(`upstream respondió ${upstream.status}`);
+  }
+
+  const responseHeaders = {
+    "Content-Type": mimeType,
+    "Accept-Ranges": upstream.headers.get("accept-ranges") || "bytes",
+    "Content-Length": upstream.headers.get("content-length") || undefined,
+    "Content-Range": upstream.headers.get("content-range") || undefined,
+    "Cache-Control": "no-store",
+  };
+  Object.entries(responseHeaders).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) res.setHeader(k, v);
+  });
+  res.statusCode = upstream.status === 206 ? 206 : 200;
+
+  upstream.body.on("error", (err) => {
+    console.error("[proxyDirectAudio] Error en stream:", err.message);
+    try { res.end(); } catch {}
+  });
+  res.on("close", () => {
+    try { upstream.body.destroy(); } catch {}
+  });
+
+  upstream.body.pipe(res);
+};
+
+export const streamAudioToResponse = async (url, res, startSeconds = 0, rangeHeader) => {
   if (startSeconds > 0) {
     streamAudioFromOffset(url, res, startSeconds);
     return;
+  }
+
+  try {
+    const { url: directUrl, mimeType, validated } = await getAudioDirectUrl(url);
+    if (validated) {
+      await proxyDirectAudio(res, directUrl, mimeType, rangeHeader);
+      return;
+    }
+    console.warn(`[streamAudioToResponse] URL no validada, usando pipe yt-dlp directamente`);
+  } catch (error) {
+    urlCache.delete(`audio:${extractVideoId(url)}`);
+    console.warn(`[streamAudioToResponse] Proxy directo falló (${error.message}), fallback a pipe yt-dlp`);
+    if (res.headersSent) { try { res.end(); } catch {} return; }
   }
 
   const videoId = extractVideoId(url);
@@ -371,24 +544,26 @@ export const downloadAudio = (url, startSeconds = 0) => {
     return downloadCache.get(cacheKey);
   }
 
-  const tempFile = path.join(os.tmpdir(), `ytdlp-${cacheKey}.m4a`);
+  const finalFile = path.join(AUDIO_CACHE_DIR, `${cacheKey}.m4a`);
+  const partialFile = `${finalFile}.download`;
   const promise = new Promise((resolve, reject) => {
-    if (existsSync(tempFile)) {
-      const existingSize = statSync(tempFile).size;
+    if (existsSync(finalFile)) {
+      const existingSize = statSync(finalFile).size;
       if (existingSize > 5000) {
-        console.log(`[yt-dlp] Archivo en disco (${existingSize} bytes): ${tempFile}`);
-        return resolve(tempFile);
+        console.log(`[yt-dlp] Archivo en cache (${existingSize} bytes): ${finalFile}`);
+        return resolve(finalFile);
       }
-      console.warn(`[yt-dlp] Archivo en disco corrupto (${existingSize} bytes), eliminando y re-descargando: ${tempFile}`);
-      try { unlinkSync(tempFile); } catch {}
+      console.warn(`[yt-dlp] Archivo en cache corrupto (${existingSize} bytes), eliminando y re-descargando: ${finalFile}`);
+      try { unlinkSync(finalFile); } catch {}
     }
+    try { unlinkSync(partialFile); } catch {}
 
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const args = [
       ...getYtdlpBaseArgs(),
       videoUrl,
       "-f", "ba[ext=m4a]/ba/best",
-      "-o", tempFile,
+      "-o", partialFile,
       ...(startSeconds > 0 ? ["--download-sections", `*${startSeconds}-inf`] : []),
     ];
 
@@ -402,37 +577,37 @@ export const downloadAudio = (url, startSeconds = 0) => {
 
     proc.on("close", (code) => {
       if (code === 0) {
-        const finalSize = existsSync(tempFile) ? statSync(tempFile).size : 0;
+        const finalSize = existsSync(partialFile) ? statSync(partialFile).size : 0;
         if (finalSize <= 5000) {
-          console.error(`[yt-dlp] Descarga terminó con archivo inválido (${finalSize} bytes): ${tempFile}`);
-          downloadCache.delete(cacheKey);
-          try { unlinkSync(tempFile); } catch {}
+          console.error(`[yt-dlp] Descarga terminó con archivo inválido (${finalSize} bytes): ${partialFile}`);
+          try { unlinkSync(partialFile); } catch {}
           return reject(new Error(`yt-dlp produjo archivo vacío (${finalSize} bytes)`));
         }
-        console.log(`[yt-dlp] Descarga completa (${finalSize} bytes): ${tempFile}`);
-        resolve(tempFile);
+        try {
+          renameSync(partialFile, finalFile);
+        } catch (err) {
+          try { unlinkSync(partialFile); } catch {}
+          return reject(err);
+        }
+        console.log(`[yt-dlp] Descarga completa (${finalSize} bytes): ${finalFile}`);
+        evictAudioCacheIfNeeded();
+        resolve(finalFile);
       }
       else {
-        downloadCache.delete(cacheKey);
-        try { unlinkSync(tempFile); } catch {}
+        try { unlinkSync(partialFile); } catch {}
         reject(new Error(`yt-dlp salió con código ${code}`));
       }
     });
 
     proc.on("error", (err) => {
-      downloadCache.delete(cacheKey);
+      try { unlinkSync(partialFile); } catch {}
       reject(err);
     });
   });
 
-  promise.then((filePath) => {
-    setTimeout(async () => {
-      downloadCache.delete(cacheKey);
-      try { await unlink(filePath); } catch {}
-    }, 10 * 60 * 1000);
-  }).catch(() => {
+  promise.finally(() => {
     downloadCache.delete(cacheKey);
-  });
+  }).catch(() => {});
 
   downloadCache.set(cacheKey, promise);
   return promise;

@@ -103,9 +103,9 @@ const downloadAudio = async (req, res) => {
 
     const cached = youtubeService.getCachedAudioFile(url, Number(start));
     if (!cached) {
-      console.log(`[downloadAudio] No hay cache, streaming progresivo desde yt-dlp (start=${start})`);
+      console.log(`[downloadAudio] No hay cache, streaming progresivo (start=${start})`);
       youtubeService.downloadAudio(url, Number(start)).catch(() => {});
-      return youtubeService.streamAudioToResponse(url, res, Number(start));
+      return await youtubeService.streamAudioToResponse(url, res, Number(start), req.headers.range);
     }
 
     const filePath = cached.path;

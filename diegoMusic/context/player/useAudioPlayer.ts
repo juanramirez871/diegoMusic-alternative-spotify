@@ -249,6 +249,9 @@ export const useAudioPlayer = (
     setDuration(parseDuration(song.duration_formatted));
     seekOffsetRef.current = 0;
     isUsingLocalFileRef.current = false;
+    if (localFileUriRef.current?.startsWith('blob:')) {
+      try { URL.revokeObjectURL(localFileUriRef.current); } catch {}
+    }
     localFileUriRef.current = null;
 
     await cancelDownload();
@@ -279,7 +282,17 @@ export const useAudioPlayer = (
       console.log(`[PSL_FILES] seq=${currentSequence} persistent exists=${persistentInfo.exists} size=${(persistentInfo as any).size ?? 'N/A'} hasPersistent=${hasPersistent}`);
       console.log(`[PSL_FILES] cache exists=${(cacheInfo as any).exists} size=${(cacheInfo as any).size ?? 'N/A'} hasCache=${hasCache} → localUri=${localUri ?? 'null'}`);
 
-      if (!isOnline && !localUri) {
+      let webBlobUrl: string | null = null;
+      if (Platform.OS === 'web' && isFavorite(song.id)) {
+        webBlobUrl = await webDownload.getBlobUrl(song.id, song.title);
+        console.log(`[PSL_FILES] web blob para favorito ${song.id}: ${webBlobUrl ? 'ENCONTRADO' : 'no disponible'}`);
+        if (currentSequence !== playSequenceRef.current) {
+          if (webBlobUrl) URL.revokeObjectURL(webBlobUrl);
+          return;
+        }
+      }
+
+      if (!isOnline && !localUri && !webBlobUrl) {
         console.warn('[OFFLINE] Sin conexión y sin archivo local para:', song.id);
         Alert.alert(
           t('errors.offlineTitle'),
@@ -304,6 +317,16 @@ export const useAudioPlayer = (
         }
 
         sound = createAudioPlayer({ uri: persistentUri });
+        attachStatusListener(sound);
+
+        sound.play();
+      }
+      else if (webBlobUrl) {
+        console.log(`[PSL] seq=${currentSequence} → RAMA: WEB_LOCAL (blob favorito)`);
+        localFileUriRef.current = webBlobUrl;
+        isUsingLocalFileRef.current = true;
+
+        sound = createAudioPlayer({ uri: webBlobUrl });
         attachStatusListener(sound);
 
         sound.play();
@@ -512,25 +535,6 @@ export const useAudioPlayer = (
         }
       }
       else if (isOnline) {
-
-        if (Platform.OS === 'web') {
-          const blobUrl = await webDownload.getBlobUrl(song.id, song.title);
-          if (blobUrl) {
-            console.log(`[PSL] seq=${currentSequence} → RAMA: WEB_LOCAL (blob)`);
-            if (currentSequence !== playSequenceRef.current) {
-              URL.revokeObjectURL(blobUrl);
-              return;
-            }
-            sound = createAudioPlayer({ uri: blobUrl });
-            attachStatusListener(sound);
-
-            sound.play();
-            soundRef.current = sound;
-            await addRecentPlayed(song);
-            await addMostPlayed(song);
-            return;
-          }
-        }
 
         console.log(`[PSL] seq=${currentSequence} → RAMA: NETWORK (API fetch) song.url=${song.url}`);
         const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
