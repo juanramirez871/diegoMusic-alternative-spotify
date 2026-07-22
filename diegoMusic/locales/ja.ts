@@ -24,6 +24,7 @@ const ja: Translations = {
   },
   searchOverlay: {
     placeholder: '何を聴きますか？',
+    listening: '聞き取り中…',
     cancel: 'キャンセル',
     noResults: '結果が見つかりません',
     noResultsSub: '別のキーワードで検索してみてください。',
@@ -54,6 +55,9 @@ const ja: Translations = {
     videoQualityLow: '低画質',
     videoQualityMedium: '中画質',
     videoQualityHigh: '高画質',
+    voiceControl: '音声コントロール',
+    wakeWordTitle: '「ヘイ ディエゴ」で起動',
+    wakeWordHint: '「ヘイ ディエゴ」と言うと画面に触れずに操作できます。',
   },
   home: {
     musicTag: '音楽',

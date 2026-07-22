@@ -25,6 +25,11 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   menuButton: {
     padding: 8,
   },

@@ -1,8 +1,9 @@
 import { IconSymbol } from '@/components/IconSymbol';
-import { Text, TouchableOpacity, View, ScrollView, Image, ImageSourcePropType } from 'react-native';
+import { Text, TouchableOpacity, View, ScrollView, Image, ImageSourcePropType, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLibrary } from '@/context/PlayerContext';
+import { useWakeWordSettings } from '@/context/WakeWordContext';
 import type { Locale } from '@/interfaces/language';
 import type { VideoQuality } from '@/context/player/types';
 import { styles } from '@/styles/SettingsScreen.styles';
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
 
   const { t, locale, setLocale } = useLanguage();
   const { videoQuality, setVideoQuality } = useLibrary();
+  const { enabled: wakeWordEnabled, setEnabled: setWakeWordEnabled } = useWakeWordSettings();
   const handleSetLocale = (l: Locale) => {
     setLocale(l);
     settingsService.update({ language: l });
@@ -98,6 +100,25 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{t('settings.voiceControl')}</Text>
+            <View style={styles.option}>
+              <IconSymbol name="mic" size={22} color={wakeWordEnabled ? '#2c5af3' : '#b3b3b3'} style={styles.qualityIcon} />
+              <View style={styles.wakeWordTextWrap}>
+                <Text style={[styles.optionLabel, styles.wakeWordLabel, wakeWordEnabled && styles.optionLabelActive]}>
+                  {t('settings.wakeWordTitle')}
+                </Text>
+                <Text style={styles.wakeWordHint}>{t('settings.wakeWordHint')}</Text>
+              </View>
+              <Switch
+                value={wakeWordEnabled}
+                onValueChange={setWakeWordEnabled}
+                trackColor={{ false: '#3a3a3a', true: '#2c5af3' }}
+                thumbColor="#fff"
+              />
             </View>
           </View>
         </View>
