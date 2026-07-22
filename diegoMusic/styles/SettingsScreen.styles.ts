@@ -70,4 +70,15 @@ export const styles = StyleSheet.create({
   checkIcon: {
     marginLeft: 8,
   },
+  wakeWordTextWrap: {
+    flex: 1,
+  },
+  wakeWordLabel: {
+    flex: 0,
+  },
+  wakeWordHint: {
+    fontSize: 12,
+    color: '#8f8f8f',
+    marginTop: 2,
+  },
 });

@@ -17,6 +17,9 @@ import { Skeleton } from "@/components/Skeleton";
 import { usePlayback, useQueue } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { DownloadBanner } from "@/components/DownloadBanner";
+import { VoiceButton } from "@/components/VoiceButton";
+import { useVoiceSearch } from "@/hooks/useVoiceSearch";
+import { useVoiceCommandActions } from "@/hooks/useVoiceCommandActions";
 import { SongData } from "@/interfaces/Song";
 import type { HistoryItem, SearchOverlayProps } from '@/interfaces/ui';
 import { styles } from './styles';
@@ -87,6 +90,23 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
   const [results, setResults] = useState<SongData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSearchedQuery, setLastSearchedQuery] = useState("");
+
+  const runCommand = useVoiceCommandActions();
+  const { isListening, start, stop, available } = useVoiceSearch({
+    onResult: (result) => {
+      if (result.command) {
+        runCommand(result.command);
+      } else if (result.query) {
+        setSearchQuery(result.query);
+      }
+    },
+    onPartial: (text) => setSearchQuery(text),
+  });
+
+  const handleMicPress = () => {
+    if (isListening) stop();
+    else start();
+  };
 
   const fetchResults = async (query: string) => {
     
@@ -183,12 +203,19 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
             <TextInput
               autoFocus
               style={styles.activeSearchInput}
-              placeholder={t('searchOverlay.placeholder')}
+              placeholder={isListening ? t('searchOverlay.listening') : t('searchOverlay.placeholder')}
               placeholderTextColor="#b3b3b3"
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
             />
+            {available && (
+              <VoiceButton
+                isListening={isListening}
+                onPress={handleMicPress}
+                style={styles.voiceButton}
+              />
+            )}
             {isLoading && <SearchLoadingIndicator />}
           </View>
           <TouchableOpacity onPress={onClose} style={styles.cancelButtonWrapper}>
