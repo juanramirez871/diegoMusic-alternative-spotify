@@ -21,9 +21,6 @@ import { MaximazedPlayerProps, PlayerCarouselProps } from '@/interfaces/player';
 import { useVideoPlayback } from '@/hooks/useVideoPlayback';
 import { usePlayerGestures } from '@/hooks/usePlayerGestures';
 import { MarqueeText } from "@/components/MarqueeText";
-import { VoiceButton } from "@/components/VoiceButton";
-import { useVoiceSearch } from "@/hooks/useVoiceSearch";
-import { useVoiceCommandActions } from "@/hooks/useVoiceCommandActions";
 import { styles } from './styles';
 
 
@@ -32,20 +29,6 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
   const { isOnline } = useNetwork();
   const { t } = useLanguage();
   const pathname = usePathname();
-
-  const runCommand = useVoiceCommandActions();
-  const { isListening: isVoiceListening, start: startVoice, stop: stopVoice, available: voiceAvailable } =
-    useVoiceSearch({
-      // En el reproductor el micrófono solo ejecuta comandos; ignoramos búsquedas.
-      onResult: (result) => {
-        if (result.command) runCommand(result.command);
-      },
-    });
-
-  const handleVoicePress = () => {
-    if (isVoiceListening) stopVoice();
-    else startVoice();
-  };
 
   const [isOptionsVisible, setIsOptionsVisible] = useState(false);
   const [isQueueVisible, setIsQueueVisible] = useState(false);
@@ -255,22 +238,12 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
               <IconSymbol name="chevron-down" size={32} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{t('player.nowPlaying')}</Text>
-            <View style={styles.headerActions}>
-              {voiceAvailable && (
-                <VoiceButton
-                  isListening={isVoiceListening}
-                  onPress={handleVoicePress}
-                  size={24}
-                  color="#fff"
-                />
-              )}
-              <TouchableOpacity
-                style={styles.menuButton}
-                onPress={() => setIsOptionsVisible(true)}
-              >
-                <IconSymbol name="ellipsis-horizontal" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={() => setIsOptionsVisible(true)}
+            >
+              <IconSymbol name="ellipsis-horizontal" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           <ScrollView

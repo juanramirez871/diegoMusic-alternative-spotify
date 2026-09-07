@@ -12,15 +12,10 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { ArtistData, SongData } from "@/interfaces/Song";
 import { IconSymbol } from '@/components/IconSymbol';
-import { VoiceButton } from "@/components/VoiceButton";
-import { useVoiceSearch } from "@/hooks/useVoiceSearch";
-import { useVoiceCommandActions } from "@/hooks/useVoiceCommandActions";
-import { useWakeWordSettings } from "@/context/WakeWordContext";
 import React, { useMemo, useRef, useState } from "react";
 import { Animated, Image, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
 import { styles } from "@/styles/HomeScreen.styles";
 
 
@@ -65,29 +60,6 @@ export default function HomeScreen() {
 
   const handleCloseStats = () => {
     Animated.timing(statsFadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setIsStatsVisible(false));
-  };
-
-  const runVoiceCommand = useVoiceCommandActions();
-  const { capturing: isWakeCapturing } = useWakeWordSettings();
-  const { isListening: isVoiceListening, start: startVoice, stop: stopVoice } =
-    useVoiceSearch({
-      onResult: (result) => {
-        if (result.command) {
-          runVoiceCommand(result.command);
-        } else if (result.query) {
-          // Navega al tab de búsqueda con la query; voiceTs fuerza el efecto
-          // aunque se repita la misma frase.
-          router.push({
-            pathname: '/(tabs)/search',
-            params: { q: result.query, voiceTs: String(Date.now()) },
-          });
-        }
-      },
-    });
-
-  const handleVoicePress = () => {
-    if (isVoiceListening) stopVoice();
-    else startVoice();
   };
 
   const displayArtists = useMemo(() => {
@@ -163,14 +135,6 @@ export default function HomeScreen() {
                 >
                   <IconSymbol name="trophy-outline" size={18} color="#E0E0E0" />
                 </TouchableOpacity>
-                <View style={styles.statsButton}>
-                  <VoiceButton
-                    isListening={isVoiceListening || isWakeCapturing}
-                    onPress={handleVoicePress}
-                    size={18}
-                    color="#E0E0E0"
-                  />
-                </View>
               </View>
             </View>
 

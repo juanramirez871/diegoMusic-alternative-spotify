@@ -2,22 +2,27 @@ import { useState, useEffect } from 'react';
 import * as FileSystem from '@/utils/fileSystem';
 import { useLibrary } from '@/context/PlayerContext';
 
+const thumbUriFor = (songId: string) => `${FileSystem.documentDirectory}${songId}_thumb.jpg`;
+const knownLocal = new Set<string>();
+
 export const useThumbnail = (songId: string | undefined, remoteUrl: string | undefined) => {
 
   const { isFavorite } = useLibrary();
-  const [localExists, setLocalExists] = useState(false);
   const favoriteStatus = songId ? isFavorite(songId) : false;
+  const [localExists, setLocalExists] = useState(
+    () => !!songId && knownLocal.has(songId)
+  );
   const normalizedRemote = typeof remoteUrl === 'string' ? remoteUrl.trim() : '';
-  const isYoutubeThumb = /ytimg\.com|googleusercontent\.com/i.test(normalizedRemote);
-  const shouldPreferLocal = !normalizedRemote || isYoutubeThumb;
 
   useEffect(() => {
     let isMounted = true;
     async function checkFile() {
       if (songId && favoriteStatus) {
-        const thumbUri = `${FileSystem.documentDirectory}${songId}_thumb.jpg`;
+        const thumbUri = thumbUriFor(songId);
         try {
           const info = await FileSystem.getInfoAsync(thumbUri);
+          if (info.exists) knownLocal.add(songId);
+          else knownLocal.delete(songId);
           if (isMounted) setLocalExists(info.exists);
         }
         catch (e) {
@@ -32,9 +37,12 @@ export const useThumbnail = (songId: string | undefined, remoteUrl: string | und
     return () => { isMounted = false; };
   }, [songId, favoriteStatus]);
 
-  if (normalizedRemote && !shouldPreferLocal) return { uri: normalizedRemote };
-  if (localExists && songId) return { uri: `${FileSystem.documentDirectory}${songId}_thumb.jpg` };
+  if (favoriteStatus && localExists && songId) {
+    return { uri: thumbUriFor(songId) };
+  }
+
   if (normalizedRemote) return { uri: normalizedRemote };
+  if (localExists && songId) return { uri: thumbUriFor(songId) };
 
   return require("@/assets/images/cover.jpg");
 };

@@ -10,7 +10,5 @@ router.get('/audio/url', youtubeController.getAudioUrl);
 router.get('/audio/prefetch', youtubeController.prefetchAudio);
 router.get('/audio/warm', youtubeController.warmAudio);
 router.get('/video/stream', youtubeController.streamVideo);
-router.get('/cover/resolve', youtubeController.resolveCover);
-router.get('/artist/image/resolve', youtubeController.resolveArtistImage);
 
 export default router;

@@ -76,9 +76,6 @@ const SF_TO_MATERIAL: Record<string, React.ComponentProps<typeof MaterialIcons>[
   'timer-outline': 'timer',
   'translate': 'translate',
   'play-video': 'smart-display',
-  'mic': 'mic',
-  'mic-outline': 'mic-none',
-  'mic-off': 'mic-off',
 };
 
 export function IconSymbol({

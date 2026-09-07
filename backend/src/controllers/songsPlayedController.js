@@ -1,5 +1,4 @@
 import { Artist, Song, SongPlayed } from '../models/index.js';
-import { enrichMediaMetadata } from '../services/mediaMetadataService.js';
 
 export async function recordPlay(req, res) {
 
@@ -8,23 +7,16 @@ export async function recordPlay(req, res) {
   if (!youtubeId || !title) return res.status(400).json({ error: 'youtubeId and title required' });
 
   try {
-    const enriched = await enrichMediaMetadata({
-      title,
-      artistName: channelName,
-      thumbnailUrl,
-      artistAvatar: channelAvatar,
-    });
-
     let artistId = null;
     if (channelId) {
       const [artist] = await Artist.findOrCreate({
         where: { channelId },
-        defaults: { name: channelName ?? '', avatar: enriched.artistAvatar ?? '' },
+        defaults: { name: channelName ?? '', avatar: channelAvatar ?? '' },
       });
 
       const patch = {};
       if (channelName && !artist.name) patch.name = channelName;
-      if (enriched.artistAvatar && artist.avatar !== enriched.artistAvatar) patch.avatar = enriched.artistAvatar;
+      if (channelAvatar && artist.avatar !== channelAvatar) patch.avatar = channelAvatar;
       if (Object.keys(patch).length > 0) await artist.update(patch);
 
       artistId = artist.id;
@@ -32,11 +24,11 @@ export async function recordPlay(req, res) {
 
     const [song] = await Song.findOrCreate({
       where: { youtubeId },
-      defaults: { title, thumbnailUrl: enriched.thumbnailUrl, durationFormatted, artistId },
+      defaults: { title, thumbnailUrl: thumbnailUrl ?? '', durationFormatted, artistId },
     });
 
-    if (song.title !== title || song.thumbnailUrl !== enriched.thumbnailUrl) {
-      await song.update({ title, thumbnailUrl: enriched.thumbnailUrl, durationFormatted, artistId });
+    if (song.title !== title || song.thumbnailUrl !== (thumbnailUrl ?? '')) {
+      await song.update({ title, thumbnailUrl: thumbnailUrl ?? '', durationFormatted, artistId });
     }
 
     const now = new Date();

@@ -1,5 +1,4 @@
 import { Artist, FavoriteArtist } from '../models/index.js';
-import { resolveArtistImageCached } from '../services/mediaMetadataService.js';
 
 export async function getFavoriteArtists(req, res) {
   const userId = req.user.id;
@@ -28,8 +27,7 @@ export async function addFavoriteArtist(req, res) {
   if (!channelId || !name) return res.status(400).json({ error: 'channelId and name required' });
   try
   {
-    const resolvedAvatar = await resolveArtistImageCached({ artist: name, rawTitle: name });
-    const bestAvatar = resolvedAvatar || avatar || '';
+    const bestAvatar = avatar || '';
     const [artist] = await Artist.findOrCreate({
       where: { channelId },
       defaults: { name, avatar: bestAvatar },

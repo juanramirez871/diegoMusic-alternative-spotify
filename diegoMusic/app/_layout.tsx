@@ -15,8 +15,6 @@ import { requestNotificationPermission } from '@/services/notifications';
 import { LanguageProvider, useLanguage } from '@/context/LanguageContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { LoginScreen } from '@/components/LoginScreen';
-import { WakeWordProvider } from '@/context/WakeWordContext';
-import { WakeWordListener } from '@/components/WakeWordListener';
 import { settingsService } from '@/services/settingsService';
 import type { Locale } from '@/interfaces/language';
 import type { VideoQuality } from '@/context/player/types';
@@ -106,7 +104,6 @@ function RootLayoutContent() {
         </Stack>
         {!isMaximized && Platform.OS !== 'web' && <MinimizedPlayer onPress={() => setIsMaximized(true)} />}
         {Platform.OS !== 'web' && <MaximazedPlayer visible={isMaximized} onClose={() => setIsMaximized(false)} />}
-        {Platform.OS !== 'web' && isLoggedIn && <WakeWordListener />}
         <StatusBar style="auto" />
       </ThemeProvider>
     </GestureHandlerRootView>
@@ -122,12 +119,10 @@ export default function RootLayout() {
     <LanguageProvider>
       <NetworkProvider>
         <AuthProvider>
-          <WakeWordProvider>
-            <PlayerProvider>
-              <RootLayoutContent />
-              <DownloadBanner />
-            </PlayerProvider>
-          </WakeWordProvider>
+          <PlayerProvider>
+            <RootLayoutContent />
+            <DownloadBanner />
+          </PlayerProvider>
         </AuthProvider>
       </NetworkProvider>
     </LanguageProvider>

@@ -2,7 +2,7 @@ import { youtubeService } from '@/services/youtubeService';
 import storage from '@/services/storage';
 import { sendDownloadCompleteNotification } from '@/services/notifications';
 import * as FileSystem from '@/utils/fileSystem';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Platform } from 'react-native';
 import { webDownload } from '@/services/webDownload';
 import {
@@ -69,27 +69,46 @@ export const usePlayerStorage = () => {
     setTimeout(() => setShowDownloadBanner(false), 2000);
   };
 
+  const syncingThumbnailsRef = useRef(false);
+
   const syncThumbnails = async (favoritesList: SongData[]) => {
-    console.log(`[SYNC] Revisando ${favoritesList.length} favoritos para portadas faltantes...`);
-    for (const song of favoritesList) {
-      if (!song.thumbnail?.url) continue;
-      
-      const thumbnailUri = `${FileSystem.documentDirectory}${song.id}_thumb.jpg`;
-      try {
-        const info = await FileSystem.getInfoAsync(thumbnailUri);
-        if (!info.exists) {
+    if (Platform.OS === 'web') return;
+    if (syncingThumbnailsRef.current) return;
+    syncingThumbnailsRef.current = true;
+    try {
+      console.log(`[SYNC] Revisando ${favoritesList.length} favoritos para portadas faltantes...`);
+      for (const song of favoritesList)
+      {
+        if (!song?.id || !song.thumbnail?.url) continue;
+        const thumbnailUri = `${FileSystem.documentDirectory}${song.id}_thumb.jpg`;
+        try
+        {
+          const info = await FileSystem.getInfoAsync(thumbnailUri);
+          if (info.exists && (info as any).size > 1000) continue;
+          if (info.exists) await FileSystem.deleteAsync(thumbnailUri, { idempotent: true });
+
           console.log(`[SYNC] Descargando portada faltante para: ${song.title}`);
-          const thumbDownload = FileSystem.createDownloadResumable(
+          const tmpUri = `${thumbnailUri}.download`;
+          await FileSystem.deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
+          const result = await FileSystem.createDownloadResumable(
             song.thumbnail.url,
             thumbnailUri,
             {}
-          );
-          await thumbDownload.downloadAsync();
+          ).downloadAsync();
+
+          const finalInfo = await FileSystem.getInfoAsync(result?.uri || thumbnailUri);
+          if (!finalInfo.exists || (finalInfo as any).size <= 1000) {
+            await FileSystem.deleteAsync(thumbnailUri, { idempotent: true }).catch(() => {});
+            console.warn(`[SYNC] Portada inválida, descartada: ${song.title}`);
+          }
+        }
+        catch (e) {
+          console.warn(`[SYNC] Error sincronizando portada de ${song.title}:`, e);
         }
       }
-      catch (e) {
-        console.warn(`[SYNC] Error sincronizando portada de ${song.title}:`, e);
-      }
+    }
+    finally {
+      syncingThumbnailsRef.current = false;
     }
   };
 
@@ -182,6 +201,13 @@ export const usePlayerStorage = () => {
       }
     });
   }, [token, isOnline]);
+
+  // Whenever we come back online (or the favorites list changes) make sure every
+  // favorite has its cover cached locally, so it still shows up offline.
+  useEffect(() => {
+    if (!isOnline || favorites.length === 0) return;
+    syncThumbnails(favorites);
+  }, [isOnline, favorites]);
 
   const toggleFavorite = async (song: SongData) => {
 

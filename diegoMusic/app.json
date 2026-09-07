@@ -15,8 +15,6 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "NSMicrophoneUsageDescription": "Permite buscar canciones y controlar la reproducción con tu voz.",
-        "NSSpeechRecognitionUsageDescription": "Convierte tu voz en texto para buscar música y ejecutar comandos.",
         "UIBackgroundModes": [
           "audio"
         ],
@@ -42,8 +40,7 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_AUDIO_PLAYBACK",
         "POST_NOTIFICATIONS",
-        "WAKE_LOCK",
-        "RECORD_AUDIO"
+        "WAKE_LOCK"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -79,14 +76,6 @@
       "expo-audio",
       "expo-video",
       "expo-screen-orientation",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Permite buscar canciones y controlar la reproducción con tu voz.",
-          "speechRecognitionPermission": "Convierte tu voz en texto para buscar música y ejecutar comandos.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
-        }
-      ],
       "./plugins/withoutPushEntitlement"
     ],
     "experiments": {

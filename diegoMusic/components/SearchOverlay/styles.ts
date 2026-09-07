@@ -29,10 +29,6 @@ export const styles = StyleSheet.create({
     height: '100%',
     outlineStyle: 'none' as any,
   },
-  voiceButton: {
-    paddingLeft: 8,
-    paddingRight: 2,
-  },
   cancelButtonWrapper: {
     paddingLeft: 4,
   },

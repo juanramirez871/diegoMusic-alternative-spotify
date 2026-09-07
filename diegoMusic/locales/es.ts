@@ -24,7 +24,6 @@ const es: Translations = {
   },
   searchOverlay: {
     placeholder: '¿Qué quieres escuchar?',
-    listening: 'Escuchando…',
     cancel: 'Cancelar',
     noResults: 'Sin resultados',
     noResultsSub: 'Intenta buscar algo diferente.',
@@ -55,9 +54,6 @@ const es: Translations = {
     videoQualityLow: 'Baja',
     videoQualityMedium: 'Media',
     videoQualityHigh: 'Alta',
-    voiceControl: 'Control por voz',
-    wakeWordTitle: 'Activación "Hey Diego"',
-    wakeWordHint: 'Di "Hey Diego" para dar comandos sin tocar la pantalla.',
   },
   home: {
     musicTag: 'Musica',

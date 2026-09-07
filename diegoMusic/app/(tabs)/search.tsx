@@ -8,7 +8,6 @@ import { usePlayerUI } from "@/context/PlayerContext";
 import type { HistoryItem } from '@/interfaces/ui';
 import storage from '@/services/storage';
 import { IconSymbol } from '@/components/IconSymbol';
-import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -38,7 +37,6 @@ export default function TabTwoScreen() {
   const { isOnline, isNetworkChecked, isApiReachable } = useNetwork();
   const { t } = useLanguage();
   const { isMaximized } = usePlayerUI();
-  const params = useLocalSearchParams<{ q?: string; voiceTs?: string }>();
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -75,13 +73,6 @@ export default function TabTwoScreen() {
       useNativeDriver: true,
     }).start();
   };
-
-  useEffect(() => {
-    const q = params.q?.trim();
-    if (!q) return;
-    setSearchQuery(q);
-    handleOpenSearch();
-  }, [params.q, params.voiceTs]);
 
   const handleOpenGenre = (genreTitle: string, query: string) => {
     setSelectedGenre({ title: genreTitle, query });

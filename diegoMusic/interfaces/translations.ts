@@ -24,7 +24,6 @@ export interface Translations {
   };
   searchOverlay: {
     placeholder: string;
-    listening: string;
     cancel: string;
     noResults: string;
     noResultsSub: string;
@@ -55,9 +54,6 @@ export interface Translations {
     videoQualityLow: string;
     videoQualityMedium: string;
     videoQualityHigh: string;
-    voiceControl: string;
-    wakeWordTitle: string;
-    wakeWordHint: string;
   };
   home: {
     musicTag: string;
