@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import * as FileSystem from '@/utils/fileSystem';
 import { useLibrary } from '@/context/PlayerContext';
+import { thumbUri as thumbUriFor } from '@/context/player/downloadFiles';
 
-const thumbUriFor = (songId: string) => `${FileSystem.documentDirectory}${songId}_thumb.jpg`;
 const knownLocal = new Set<string>();
 
 export const useThumbnail = (songId: string | undefined, remoteUrl: string | undefined) => {

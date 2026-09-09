@@ -15,6 +15,7 @@ import { parseDuration } from './player/utils';
 import { usePlayerStorage } from './player/usePlayerStorage';
 import { usePlaylists } from './player/usePlaylists';
 import { usePlaylistDownloads } from './player/usePlaylistDownloads';
+import { thumbUri } from './player/downloadFiles';
 import { usePreloader } from './player/usePreloader';
 import { useAudioPlayer } from './player/useAudioPlayer';
 import { usePlayerQueue } from './player/usePlayerQueue';
@@ -284,7 +285,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       let artworkUri = currentSong.thumbnail?.url;
 
       if (isFavorite(currentSong.id)) {
-        const localThumbUri = `${FileSystem.documentDirectory}${currentSong.id}_thumb.jpg`;
+        const localThumbUri = thumbUri(currentSong.id);
         try {
           const info = await FileSystem.getInfoAsync(localThumbUri);
           if (info.exists) artworkUri = localThumbUri;

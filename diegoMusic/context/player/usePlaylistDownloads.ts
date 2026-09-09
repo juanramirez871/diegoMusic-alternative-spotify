@@ -13,6 +13,8 @@ import {
   downloadSongAudio,
   downloadSongThumb,
   deleteSongFiles,
+  ensureDownloadsDir,
+  DOWNLOADS_DIR,
   MIN_THUMB_BYTES,
 } from './downloadFiles';
 
@@ -54,7 +56,8 @@ export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }
       if (Platform.OS !== 'web')
       {
         try {
-          const dir = FileSystem.documentDirectory!;
+          await ensureDownloadsDir();
+          const dir = DOWNLOADS_DIR();
           const files = await FileSystem.readDirectoryAsync(dir);
           for (const name of files)
           {
@@ -162,6 +165,7 @@ export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }
     if (thumbSyncingRef.current) return;
     thumbSyncingRef.current = true;
     try {
+      await ensureDownloadsDir();
       for (const song of allSongsRef.current) {
         if (!song?.id || !song.thumbnail?.url) continue;
         try {
@@ -178,6 +182,10 @@ export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }
       thumbSyncingRef.current = false;
     }
   }, []);
+
+  // Create the downloads folder (and migrate legacy files) once at startup so
+  // the very first sync doesn't see an empty/missing directory.
+  useEffect(() => { ensureDownloadsDir(); }, []);
 
   useEffect(() => {
     if (!hydrated) return;

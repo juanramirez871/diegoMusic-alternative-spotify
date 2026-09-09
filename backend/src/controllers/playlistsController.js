@@ -303,18 +303,28 @@ export async function addSong(req, res) {
 
     const song = await upsertSong(req.body);
 
-    const existing = await PlaylistSong.findOne({
-      where: { playlistId: playlist.id, songId: song.id },
-    });
-    if (!existing) {
-      const max = await PlaylistSong.max('position', { where: { playlistId: playlist.id } });
-      await PlaylistSong.create({
-        playlistId: playlist.id,
-        songId: song.id,
-        position: Number.isFinite(max) ? max + 1 : 0,
-        addedAt: new Date(),
+    // A JS "read max, then create" races when the client fires many adds in
+    // parallel (e.g. "add all of an artist's songs"), landing several rows on
+    // the same position. Serialize per-playlist with a transaction-scoped
+    // advisory lock, then compute the next position and insert. ON CONFLICT
+    // makes re-adds idempotent.
+    await sequelize.transaction(async (tx) => {
+      await sequelize.query('SELECT pg_advisory_xact_lock(:key)', {
+        replacements: { key: playlist.id },
+        transaction: tx,
       });
-    }
+      await sequelize.query(
+        `
+          INSERT INTO "playlistSongs" ("playlistId", "songId", "position", "addedAt", "createdAt")
+          SELECT :playlistId, :songId,
+                 COALESCE(MAX("position") + 1, 0),
+                 NOW(), NOW()
+          FROM "playlistSongs" WHERE "playlistId" = :playlistId
+          ON CONFLICT ("playlistId", "songId") DO NOTHING
+        `,
+        { replacements: { playlistId: playlist.id, songId: song.id }, transaction: tx },
+      );
+    });
     res.status(201).json({ ok: true });
   }
   catch (err) {

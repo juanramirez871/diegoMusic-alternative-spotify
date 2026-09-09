@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from '@/utils/fileSystem';
 import { useLibrary } from '@/context/PlayerContext';
 import { webDownload } from '@/services/webDownload';
+import { audioUri, MIN_AUDIO_BYTES } from '@/context/player/downloadFiles';
 
 export function usePendingDownloads(): number {
 
@@ -30,8 +31,8 @@ export function usePendingDownloads(): number {
       const checks = await Promise.all(
         favorites.map(async (song) => {
           try {
-            const info = await FileSystem.getInfoAsync(`${FileSystem.documentDirectory}${song.id}.mp3`);
-            return info.exists && (info as any).size > 100000;
+            const info = await FileSystem.getInfoAsync(audioUri(song.id));
+            return info.exists && (info as any).size > MIN_AUDIO_BYTES;
           }
           catch {
             return false;

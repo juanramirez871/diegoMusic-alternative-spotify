@@ -53,6 +53,30 @@ const local = StyleSheet.create({
   containerIcons: {
     top: 250,
   },
+  downloadBanner: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(20,20,20,0.94)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  downloadBannerText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });
 
 export default function PlaylistDetailScreen() {
@@ -318,8 +342,9 @@ export default function PlaylistDetailScreen() {
       )}
 
       {pendingDownloads > 0 && playlist?.downloadEnabled && (
-        <View style={{ position: 'absolute', bottom: 90, alignSelf: 'center' }}>
-          <Text style={styles.count}>
+        <View style={local.downloadBanner}>
+          <IconSymbol name="arrow.down.circle.fill" size={15} color="#2c5af3" />
+          <Text style={local.downloadBannerText}>
             {syncProgress
               ? t('playlist.downloading', { done: syncProgress.done, total: syncProgress.total })
               : t('playlist.songCount', { count: pendingDownloads })}

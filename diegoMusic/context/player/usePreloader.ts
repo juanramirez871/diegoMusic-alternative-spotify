@@ -2,6 +2,7 @@ import { SongData } from '@/interfaces/Song';
 import { youtubeService } from '@/services/youtubeService';
 import { createAudioPlayer, AudioPlayer } from 'expo-audio';
 import * as FileSystem from '@/utils/fileSystem';
+import { audioUri } from './downloadFiles';
 import { useRef } from 'react';
 import { Platform } from 'react-native';
 
@@ -33,7 +34,7 @@ export const usePreloader = () => {
     }
 
     for (const song of nextSongs) {
-      const persistentUri = `${FileSystem.documentDirectory}${song.id}.mp3`;
+      const persistentUri = audioUri(song.id);
       let fileInfo = await FileSystem.getInfoAsync(persistentUri);
       let localUri = persistentUri;
 

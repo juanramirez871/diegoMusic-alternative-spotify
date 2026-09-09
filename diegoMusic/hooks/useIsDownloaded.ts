@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from '@/utils/fileSystem';
 import { useLibrary } from '@/context/PlayerContext';
 import { webDownload } from '@/services/webDownload';
+import { audioUri, MIN_AUDIO_BYTES } from '@/context/player/downloadFiles';
 
 export function useIsDownloaded(songId?: string, title?: string): boolean {
   
@@ -24,11 +25,10 @@ export function useIsDownloaded(songId?: string, title?: string): boolean {
       return () => { cancelled = true; };
     }
 
-    const uri = `${FileSystem.documentDirectory}${songId}.mp3`;
-    FileSystem.getInfoAsync(uri)
+    FileSystem.getInfoAsync(audioUri(songId))
       .then((info) => {
         if (cancelled) return;
-        setDownloaded(info.exists && (info as any).size > 100000);
+        setDownloaded(info.exists && (info as any).size > MIN_AUDIO_BYTES);
       })
       .catch(() => !cancelled && setDownloaded(false));
 

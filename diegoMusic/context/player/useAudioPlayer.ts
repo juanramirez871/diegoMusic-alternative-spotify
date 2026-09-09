@@ -4,6 +4,7 @@ import * as FileSystem from '@/utils/fileSystem';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Platform } from 'react-native';
 import { webDownload } from '@/services/webDownload';
+import { audioUri, ensureDownloadsDir } from './downloadFiles';
 import { PlaybackState, SafeMediaControl } from './mediaControls';
 import { parseDuration } from './utils';
 import { SongData } from '@/interfaces/Song';
@@ -265,7 +266,10 @@ export const useAudioPlayer = (
 
     try {
       let sound: AudioPlayer;
-      const persistentUri = `${FileSystem.documentDirectory}${song.id}.mp3`;
+      // Same folder + filename scheme as the playlist download layer, rebuilt
+      // from the current documentDirectory (do NOT persist this string).
+      await ensureDownloadsDir();
+      const persistentUri = audioUri(song.id);
       const cacheUri = `${FileSystem.cacheDirectory}${song.id}.mp3`;
 
       if (currentSequence !== playSequenceRef.current) {
