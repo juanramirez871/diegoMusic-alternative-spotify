@@ -17,7 +17,7 @@ export const useAudioPlayer = (
   addRecentPlayed: (song: SongData) => Promise<void>,
   addMostPlayed: (song: SongData) => Promise<void>,
   isOnline: boolean = true,
-  isFavorite: (id: string) => boolean
+  songIsWanted: (id: string) => boolean
 ) => {
 
   const { t } = useLanguage();
@@ -283,7 +283,7 @@ export const useAudioPlayer = (
       console.log(`[PSL_FILES] cache exists=${(cacheInfo as any).exists} size=${(cacheInfo as any).size ?? 'N/A'} hasCache=${hasCache} → localUri=${localUri ?? 'null'}`);
 
       let webBlobUrl: string | null = null;
-      if (Platform.OS === 'web' && isFavorite(song.id)) {
+      if (Platform.OS === "web" && songIsWanted(song.id)) {
         webBlobUrl = await webDownload.getBlobUrl(song.id, song.title);
         console.log(`[PSL_FILES] web blob para favorito ${song.id}: ${webBlobUrl ? 'ENCONTRADO' : 'no disponible'}`);
         if (currentSequence !== playSequenceRef.current) {
@@ -356,8 +356,8 @@ export const useAudioPlayer = (
           if (!localUri && isOnline && Platform.OS !== 'web') {
             const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
             if (currentSequence !== playSequenceRef.current) return;
-            const targetUri = isFavorite(song.id) ? persistentUri : cacheUri;
-            console.log(`[DOWNLOAD] Iniciando descarga de fondo a: ${isFavorite(song.id) ? 'Favoritos' : 'Cache'}`);
+            const targetUri = songIsWanted(song.id) ? persistentUri : cacheUri;
+            console.log(`[DOWNLOAD] Iniciando descarga de fondo a: ${songIsWanted(song.id) ? "Playlist" : "Cache"}`);
             const downloadResumable = FileSystem.createDownloadResumable(directUrl, targetUri, {});
 
             downloadResumableRef.current = downloadResumable;
@@ -474,7 +474,7 @@ export const useAudioPlayer = (
           sound.play();
 
           if (Platform.OS !== 'web') {
-            const targetUri = isFavorite(song.id) ? persistentUri : cacheUri;
+            const targetUri = songIsWanted(song.id) ? persistentUri : cacheUri;
             const downloadResumable = FileSystem.createDownloadResumable(directUrl, targetUri, {});
             downloadResumableRef.current = downloadResumable;
             downloadTargetUriRef.current = targetUri;
@@ -561,8 +561,8 @@ export const useAudioPlayer = (
         console.log(`[PSL] NETWORK: play() llamado. seq=${currentSequence}`);
 
         if (Platform.OS !== 'web') {
-          const targetUri = isFavorite(song.id) ? persistentUri : cacheUri;
-          console.log(`[DOWNLOAD] Iniciando descarga de fondo a: ${isFavorite(song.id) ? 'Favoritos' : 'Cache'}`);
+          const targetUri = songIsWanted(song.id) ? persistentUri : cacheUri;
+          console.log(`[DOWNLOAD] Iniciando descarga de fondo a: ${songIsWanted(song.id) ? "Playlist" : "Cache"}`);
           const downloadResumable = FileSystem.createDownloadResumable(directUrl, targetUri, {});
           downloadResumableRef.current = downloadResumable;
           downloadTargetUriRef.current = targetUri;

@@ -6,6 +6,9 @@ import Settings from './Settings.js';
 import SongPlayed from './SongPlayed.js';
 import FavoriteSong from './FavoriteSong.js';
 import FavoriteArtist from './FavoriteArtist.js';
+import Playlist from './Playlist.js';
+import PlaylistSong from './PlaylistSong.js';
+import PlaylistFollow from './PlaylistFollow.js';
 
 Artist.hasMany(Song, { foreignKey: 'artistId' });
 Song.belongsTo(Artist, { foreignKey: 'artistId' });
@@ -31,4 +34,34 @@ FavoriteArtist.belongsTo(User, { foreignKey: 'userId' });
 Artist.hasMany(FavoriteArtist, { foreignKey: 'artistId', onDelete: 'CASCADE' });
 FavoriteArtist.belongsTo(Artist, { foreignKey: 'artistId' });
 
-export { sequelize, User, Artist, Song, Settings, SongPlayed, FavoriteSong, FavoriteArtist };
+User.hasMany(Playlist, { foreignKey: 'userId', onDelete: 'CASCADE' });
+Playlist.belongsTo(User, { foreignKey: 'userId' });
+
+Playlist.belongsToMany(Song, { through: PlaylistSong, foreignKey: 'playlistId', otherKey: 'songId' });
+Song.belongsToMany(Playlist, { through: PlaylistSong, foreignKey: 'songId', otherKey: 'playlistId' });
+
+Playlist.hasMany(PlaylistSong, { foreignKey: 'playlistId', onDelete: 'CASCADE' });
+PlaylistSong.belongsTo(Playlist, { foreignKey: 'playlistId' });
+
+Song.hasMany(PlaylistSong, { foreignKey: 'songId', onDelete: 'CASCADE' });
+PlaylistSong.belongsTo(Song, { foreignKey: 'songId' });
+
+User.hasMany(PlaylistFollow, { foreignKey: 'userId', onDelete: 'CASCADE' });
+PlaylistFollow.belongsTo(User, { foreignKey: 'userId' });
+
+Playlist.hasMany(PlaylistFollow, { foreignKey: 'playlistId', onDelete: 'CASCADE' });
+PlaylistFollow.belongsTo(Playlist, { foreignKey: 'playlistId' });
+
+export {
+  sequelize,
+  User,
+  Artist,
+  Song,
+  Settings,
+  SongPlayed,
+  FavoriteSong,
+  FavoriteArtist,
+  Playlist,
+  PlaylistSong,
+  PlaylistFollow,
+};

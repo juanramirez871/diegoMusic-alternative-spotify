@@ -10,14 +10,19 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
 import { IconSymbol } from '@/components/IconSymbol';
 import Song from "@/components/Song";
 import { youtubeService } from "@/services/youtubeService";
+import { playlistsService } from "@/services/playlistsService";
 import { Skeleton } from "@/components/Skeleton";
-import { usePlayback, useQueue } from "@/context/PlayerContext";
+import { usePlayback, useQueue, useLibrary } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { DownloadBanner } from "@/components/DownloadBanner";
+import { PlaylistResultRow } from "@/components/PlaylistResultRow";
 import { SongData } from "@/interfaces/Song";
+import type { PublicPlaylistResult } from "@/interfaces/Playlist";
 import type { HistoryItem, SearchOverlayProps } from '@/interfaces/ui';
 import { styles } from './styles';
 
@@ -82,42 +87,55 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
   const { playSong } = usePlayback();
   const { setQueue, isShuffle } = useQueue();
+  const { playlists } = useLibrary();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [results, setResults] = useState<SongData[]>([]);
+  const [playlistResults, setPlaylistResults] = useState<PublicPlaylistResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSearchedQuery, setLastSearchedQuery] = useState("");
+  const [filter, setFilter] = useState<'all' | 'songs' | 'playlists'>('all');
 
   const fetchResults = async (query: string) => {
-    
+
     const trimmedQuery = query.trim();
     if (trimmedQuery.length <= 3) {
       setResults([]);
+      setPlaylistResults([]);
       setLastSearchedQuery("");
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    try {
-      const data = await youtubeService.searchVideos(trimmedQuery, 21);
-      setResults(data);
-      setLastSearchedQuery(trimmedQuery);
+    const [songs, playlists] = await Promise.allSettled([
+      youtubeService.searchVideos(trimmedQuery, 21),
+      playlistsService.searchPublic(trimmedQuery, 6),
+    ]);
+
+    if (songs.status === 'fulfilled') {
+      setResults(songs.value);
     }
-    catch (error) {
-      console.error("Error fetching search results:", error);
+    else {
+      console.error("Error fetching search results:", songs.reason);
       setResults([]);
-      setLastSearchedQuery(trimmedQuery);
     }
-    finally {
-      setIsLoading(false);
-    }
+
+    setPlaylistResults(
+      playlists.status === 'fulfilled' && Array.isArray(playlists.value) ? playlists.value : [],
+    );
+
+    setLastSearchedQuery(trimmedQuery);
+    setIsLoading(false);
   };
 
   useEffect(() => {
     const trimmedQuery = searchQuery.trim();
+    setFilter('all');
     if (trimmedQuery.length <= 3) {
       setResults([]);
+      setPlaylistResults([]);
       setLastSearchedQuery("");
       setIsLoading(false);
       return;
@@ -172,12 +190,27 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     setRecentSearches([]);
   };
 
+  const handleSelectPlaylist = (p: PublicPlaylistResult) => {
+    onClose();
+    if (p.isOwner) {
+      // Send owners straight to their editable playlist view.
+      const own = playlists.find((pl) => pl.serverId === p.id);
+      router.push(`/playlists/${own?.id ?? p.id}` as any);
+      return;
+    }
+    router.push(`/playlists/public/${p.slug || p.id}` as any);
+  };
+
+  const showSongs = filter !== 'playlists';
+  const showPlaylists = filter !== 'songs';
+
   if (!isVisible) return null;
 
   return (
     <Animated.View style={[styles.modalContainer, { opacity: fadeAnim, zIndex: 100 }]}>
+      <StatusBar style="light" backgroundColor="#121212" />
       <DownloadBanner />
-      <View style={{ backgroundColor: "#282828", paddingTop: insets.top }}>
+      <View style={{ backgroundColor: "#121212", paddingTop: insets.top }}>
         <View style={styles.modalHeader}>
           <View style={styles.activeSearchWrapper}>
             <TextInput
@@ -197,6 +230,26 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
         </View>
       </View>
 
+      {searchQuery.trim().length > 3 && (results.length > 0 || playlistResults.length > 0) && (
+        <View style={styles.filterRow}>
+          {([
+            ['all', t('search.filterAll')],
+            ['songs', t('search.filterSongs')],
+            ['playlists', t('search.filterPlaylists')],
+          ] as const).map(([f, label]) => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.filterChip, filter === f && styles.filterChipActive]}
+              onPress={() => setFilter(f)}
+            >
+              <Text style={[styles.filterChipText, filter === f && styles.filterChipTextActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       <KeyboardAvoidingView
         style={styles.searchContent}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -210,18 +263,47 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
               ))}
             </View>
           ) : (
-            <ScrollView 
-              showsVerticalScrollIndicator={false} 
+            <ScrollView
+              showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.resultsContainer}
             >
-              {results.map((item, index) => (
-                <Song 
-                  key={`${item.id}-${index}`} 
-                  data={item} 
-                  onPress={handleSelectSong}
-                />
-              ))}
-              {!isLoading && results.length === 0 && searchQuery.trim() === lastSearchedQuery && (
+              {showPlaylists && playlistResults.length > 0 && (
+                <View style={styles.section}>
+                  {filter === 'all' && (
+                    <Text style={styles.sectionTitle}>{t('search.playlistsSection')}</Text>
+                  )}
+                  {playlistResults.map((p) => (
+                    <PlaylistResultRow
+                      key={`pl-${p.id}`}
+                      playlist={p}
+                      onPress={() => handleSelectPlaylist(p)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {showSongs && results.length > 0 && (
+                <>
+                  {filter === 'all' && playlistResults.length > 0 && (
+                    <Text style={[styles.sectionTitle, styles.songsSectionTitle]}>
+                      {t('search.songsSection')}
+                    </Text>
+                  )}
+                  {results.map((item, index) => (
+                    <Song
+                      key={`${item.id}-${index}`}
+                      data={item}
+                      onPress={handleSelectSong}
+                    />
+                  ))}
+                </>
+              )}
+
+              {!isLoading && searchQuery.trim() === lastSearchedQuery && (
+                (filter === 'playlists' && playlistResults.length === 0) ||
+                (filter === 'songs' && results.length === 0) ||
+                (filter === 'all' && results.length === 0 && playlistResults.length === 0)
+              ) && (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateTitle}>{t('searchOverlay.noResults')}</Text>
                   <Text style={styles.emptyStateSub}>{t('searchOverlay.noResultsSub')}</Text>

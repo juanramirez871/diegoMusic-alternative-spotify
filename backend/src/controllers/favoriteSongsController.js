@@ -1,4 +1,5 @@
 import { Artist, Song, FavoriteSong } from '../models/index.js';
+import { upsertSong, songToClient } from '../services/songUpsert.js';
 
 export async function getFavoriteSongs(req, res) {
   const userId = req.user.id;
@@ -7,24 +8,11 @@ export async function getFavoriteSongs(req, res) {
       where: { userId },
       include: [{
         model: Song,
-        attributes: ['youtubeId', 'title', 'thumbnailUrl', 'durationFormatted'],
         include: [{ model: Artist, attributes: ['channelId', 'name', 'avatar'] }],
       }],
     });
 
-    const songs = records.map(r => ({
-      id: r.Song.youtubeId,
-      url: `https://www.youtube.com/watch?v=${r.Song.youtubeId}`,
-      title: r.Song.title,
-      thumbnail: { url: r.Song.thumbnailUrl ?? '' },
-      channel: {
-        name: r.Song.Artist?.name ?? '',
-        id: r.Song.Artist?.channelId ?? '',
-        avatar: r.Song.Artist?.avatar ?? '',
-      },
-      duration_formatted: r.Song.durationFormatted ?? '',
-    }));
-
+    const songs = records.filter(r => r.Song).map(r => songToClient(r.Song));
     res.json({ songs });
   }
   catch (err) {
@@ -35,33 +23,11 @@ export async function getFavoriteSongs(req, res) {
 
 export async function addFavoriteSong(req, res) {
   const userId = req.user.id;
-  const { youtubeId, title, thumbnailUrl, durationFormatted, channelId, channelName, channelAvatar } = req.body;
+  const { youtubeId, title } = req.body;
   if (!youtubeId || !title) return res.status(400).json({ error: 'youtubeId and title required' });
 
   try {
-    let artistId = null;
-    if (channelId)
-    {
-      const [artist] = await Artist.findOrCreate({
-        where: { channelId },
-        defaults: { name: channelName ?? '', avatar: channelAvatar ?? '' },
-      });
-
-      if (artist.name !== channelName || artist.avatar !== channelAvatar) {
-        await artist.update({ name: channelName, avatar: channelAvatar ?? '' });
-      }
-      artistId = artist.id;
-    }
-
-    const [song] = await Song.findOrCreate({
-      where: { youtubeId },
-      defaults: { title, thumbnailUrl: thumbnailUrl ?? '', durationFormatted, artistId },
-    });
-
-    if (song.title !== title || song.thumbnailUrl !== (thumbnailUrl ?? '')) {
-      await song.update({ title, thumbnailUrl: thumbnailUrl ?? '', durationFormatted, artistId });
-    }
-
+    const song = await upsertSong(req.body);
     await FavoriteSong.findOrCreate({ where: { userId, songId: song.id } });
     res.status(201).json({ ok: true });
   }

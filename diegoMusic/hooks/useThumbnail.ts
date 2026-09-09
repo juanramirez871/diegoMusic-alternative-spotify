@@ -7,8 +7,8 @@ const knownLocal = new Set<string>();
 
 export const useThumbnail = (songId: string | undefined, remoteUrl: string | undefined) => {
 
-  const { isFavorite } = useLibrary();
-  const favoriteStatus = songId ? isFavorite(songId) : false;
+  const { songPlaylistIds } = useLibrary();
+  const inAnyPlaylist = songId ? songPlaylistIds(songId).length > 0 : false;
   const [localExists, setLocalExists] = useState(
     () => !!songId && knownLocal.has(songId)
   );
@@ -17,7 +17,7 @@ export const useThumbnail = (songId: string | undefined, remoteUrl: string | und
   useEffect(() => {
     let isMounted = true;
     async function checkFile() {
-      if (songId && favoriteStatus) {
+      if (songId && inAnyPlaylist) {
         const thumbUri = thumbUriFor(songId);
         try {
           const info = await FileSystem.getInfoAsync(thumbUri);
@@ -35,9 +35,9 @@ export const useThumbnail = (songId: string | undefined, remoteUrl: string | und
     }
     checkFile();
     return () => { isMounted = false; };
-  }, [songId, favoriteStatus]);
+  }, [songId, inAnyPlaylist]);
 
-  if (favoriteStatus && localExists && songId) {
+  if (inAnyPlaylist && localExists && songId) {
     return { uri: thumbUriFor(songId) };
   }
 

@@ -6,7 +6,7 @@ import { webDownload } from '@/services/webDownload';
 
 export function useIsDownloaded(songId?: string, title?: string): boolean {
   
-  const { favorites, downloadVersion } = useLibrary();
+  const { wantedSongs, downloadVersion } = useLibrary();
   const [downloaded, setDownloaded] = useState(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function useIsDownloaded(songId?: string, title?: string): boolean {
       .catch(() => !cancelled && setDownloaded(false));
 
     return () => { cancelled = true; };
-  }, [songId, title, favorites, downloadVersion]);
+  }, [songId, title, wantedSongs, downloadVersion]);
 
   return downloaded;
 }

@@ -74,11 +74,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="favorite"
+        name="playlists"
         options={{
-          title: t('tabs.favorite'),
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="heart.fill" color={color} />,
+          title: t('tabs.playlists'),
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="music.note.list" color={color} />,
         }}
+      />
+      <Tabs.Screen
+        name="favorite"
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="search"

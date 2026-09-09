@@ -3,24 +3,59 @@ import type { LyricLine } from '@/interfaces/lyrics';
 export interface Translations {
   tabs: {
     home: string;
-    favorite: string;
+    playlists: string;
     search: string;
     settings: string;
   };
-  favorite: {
+  library: {
     title: string;
-    findIn: string;
+    createPlaylist: string;
+    emptyTitle: string;
+  };
+  playlist: {
+    defaultName: string;
     songCount: string;
+    findIn: string;
+    notFound: string;
     noResults: string;
     noSongs: string;
-    downloadAllDoneTitle: string;
-    downloadAllDoneBody: string;
+    rename: string;
+    cover: string;
+    removeCover: string;
+    delete: string;
+    deleteConfirm: string;
+    downloadToggle: string;
+    downloading: string;
+    byAuthor: string;
+    byYou: string;
+    savedByCount: string;
+    makePublic: string;
+    publicHint: string;
+    saveToLibrary: string;
+    removeFromLibrary: string;
+    shareLink: string;
+    unavailable: string;
+    reorder: string;
+    done: string;
+  };
+  addToPlaylist: {
+    title: string;
+    batchTitle: string;
+    batchErrorTitle: string;
+    batchErrorBody: string;
+    newPlaylist: string;
+    done: string;
   };
   search: {
     title: string;
     placeholder: string;
     placeholderOffline: string;
     browseAll: string;
+    playlistsSection: string;
+    songsSection: string;
+    filterAll: string;
+    filterSongs: string;
+    filterPlaylists: string;
   };
   searchOverlay: {
     placeholder: string;
@@ -110,8 +145,7 @@ export interface Translations {
   };
   songOptions: {
     untitled: string;
-    addToFavorites: string;
-    removeFromFavorites: string;
+    addToPlaylist: string;
     addArtistToFavorites: string;
     removeArtistFromFavorites: string;
     openOriginalVideo: string;

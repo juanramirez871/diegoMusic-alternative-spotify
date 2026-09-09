@@ -8,10 +8,13 @@ import {
   PlaybackContextType,
   QueueContextType,
   LibraryContextType,
+  QueueSource,
 } from './player/types';
 import { SafeMediaControl, Command, PlaybackState } from './player/mediaControls';
 import { parseDuration } from './player/utils';
 import { usePlayerStorage } from './player/usePlayerStorage';
+import { usePlaylists } from './player/usePlaylists';
+import { usePlaylistDownloads } from './player/usePlaylistDownloads';
 import { usePreloader } from './player/usePreloader';
 import { useAudioPlayer } from './player/useAudioPlayer';
 import { usePlayerQueue } from './player/usePlayerQueue';
@@ -28,25 +31,53 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const storageHook = usePlayerStorage();
   const {
-    favorites,
     favoriteArtists,
     recentPlayed,
     mostPlayed,
     artistPlays,
     songPlays,
-    showDownloadBanner,
     streak,
     videoQuality,
     setVideoQuality,
-    toggleFavorite,
-    isFavorite,
     toggleFavoriteArtist,
     isFavoriteArtist,
     addRecentPlayed,
     addMostPlayed,
-    downloadAllFavorites,
-    downloadVersion,
   } = storageHook;
+
+  const {
+    playlists,
+    playlistsHydrated,
+    defaultPlaylistId,
+    getPlaylistSongs,
+    createPlaylist,
+    renamePlaylist,
+    setPlaylistCover,
+    setPlaylistDownload,
+    deletePlaylist,
+    reorderPlaylists,
+    addSongToPlaylists,
+    addSongsToPlaylists,
+    removeSongFromPlaylist,
+    reorderPlaylistSongs,
+    isSongInPlaylist,
+    songPlaylistIds,
+    setPlaylistVisibility,
+    followPlaylist,
+    unfollowPlaylist,
+    wantedSongs,
+    allPlaylistSongs,
+    songIsWanted,
+    favorites,
+    isFavorite,
+    toggleFavorite,
+  } = usePlaylists();
+
+  const {
+    downloadVersion,
+    showDownloadBanner,
+    syncProgress,
+  } = usePlaylistDownloads({ wantedSongs, allPlaylistSongs, hydrated: playlistsHydrated });
 
   const [currentSong, setCurrentSong] = useState<SongData | null>(null);
   const {
@@ -69,7 +100,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setIsIntendingToPlayRef = useRef<(value: boolean) => void>(() => {});
 
-  const playSong = useCallback(async (song: SongData, initialQueue?: SongData[], source?: 'favorites' | 'search') => {
+  const playSong = useCallback(async (song: SongData, initialQueue?: SongData[], source?: QueueSource, playlistId?: string) => {
     setCurrentSong(song);
     setIsIntendingToPlayRef.current(true);
 
@@ -86,7 +117,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }).catch(() => {});
 
     const playPromise = playSongLogicRef.current!(song);
-    const queueUpdatePromise = updateQueueAndSourceRef.current(song, initialQueue, source);
+    const queueUpdatePromise = updateQueueAndSourceRef.current(song, initialQueue, source, playlistId);
     const [{ newSource }] = await Promise.all([queueUpdatePromise, playPromise]);
 
     try {
@@ -133,7 +164,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     addRecentPlayed,
     addMostPlayed,
     isOnline,
-    isFavorite,
+    songIsWanted,
   );
 
   setIsIntendingToPlayRef.current = setIsIntendingToPlay;
@@ -334,17 +365,45 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     toggleFavoriteArtist,
     isFavorite,
     isFavoriteArtist,
-    downloadAllFavorites,
     downloadVersion,
     showDownloadBanner,
     streak,
     videoQuality,
     setVideoQuality,
+
+    playlists,
+    playlistsHydrated,
+    defaultPlaylistId,
+    getPlaylistSongs,
+    createPlaylist,
+    renamePlaylist,
+    setPlaylistCover,
+    setPlaylistDownload,
+    deletePlaylist,
+    reorderPlaylists,
+    addSongToPlaylists,
+    addSongsToPlaylists,
+    removeSongFromPlaylist,
+    reorderPlaylistSongs,
+    isSongInPlaylist,
+    songPlaylistIds,
+    setPlaylistVisibility,
+    followPlaylist,
+    unfollowPlaylist,
+    wantedSongs,
+    songIsWanted,
+    syncProgress,
   }), [
     favorites, favoriteArtists, recentPlayed, mostPlayed, artistPlays, songPlays,
     toggleFavorite, toggleFavoriteArtist, isFavorite, isFavoriteArtist,
-    downloadAllFavorites, downloadVersion, showDownloadBanner, streak,
+    downloadVersion, showDownloadBanner, streak,
     videoQuality, setVideoQuality,
+    playlists, playlistsHydrated, defaultPlaylistId, getPlaylistSongs,
+    createPlaylist, renamePlaylist, setPlaylistCover, setPlaylistDownload,
+    deletePlaylist, reorderPlaylists, addSongToPlaylists, addSongsToPlaylists, removeSongFromPlaylist,
+    reorderPlaylistSongs, isSongInPlaylist, songPlaylistIds,
+    setPlaylistVisibility, followPlaylist, unfollowPlaylist,
+    wantedSongs, songIsWanted, syncProgress,
   ]);
 
   const playbackValue = useMemo<PlaybackContextType>(() => ({

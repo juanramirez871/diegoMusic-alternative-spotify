@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   Pressable,
   Dimensions,
+  Linking,
 } from "react-native";
 import { IconSymbol } from '@/components/IconSymbol';
-import { Linking } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,6 +19,7 @@ import Animated, {
 import { useLibrary } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { SongOptionsModalProps } from "@/interfaces/Song";
+import AddToPlaylistModal from "@/components/AddToPlaylistModal";
 import { styles } from './styles';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -30,8 +31,9 @@ export default function SongOptionsModal({
   song,
 }: SongOptionsModalProps) {
 
-  const { toggleFavorite, isFavorite, toggleFavoriteArtist, isFavoriteArtist } = useLibrary();
+  const { toggleFavoriteArtist, isFavoriteArtist } = useLibrary();
   const { t } = useLanguage();
+  const [addToPlaylistVisible, setAddToPlaylistVisible] = useState(false);
   const overlayOpacity = useSharedValue(0);
   const contentTranslateY = useSharedValue(SCREEN_HEIGHT * 0.4);
   const startOpenAnimation = () => {
@@ -63,10 +65,11 @@ export default function SongOptionsModal({
     );
   };
 
-  const handleToggleFavorite = () => {
-    if (song) {
-      toggleFavorite(song);
-    }
+  // iOS only presents one Modal at a time, so we must fully dismiss this sheet
+  // before mounting the "add to playlist" sheet, otherwise it never appears.
+  const openAddToPlaylist = () => {
+    onClose();
+    setTimeout(() => setAddToPlaylistVisible(true), 260);
   };
 
   const handleToggleArtistFavorite = () => {
@@ -87,7 +90,6 @@ export default function SongOptionsModal({
     }
   };
 
-  const favoriteStatus = song ? isFavorite(song.id) : false;
   const artistFavoriteStatus = song?.channel?.id ? isFavoriteArtist(song.channel.id) : false;
 
   useEffect(() => {
@@ -100,6 +102,7 @@ export default function SongOptionsModal({
   }, [visible]);
 
   return (
+    <>
     <Modal
       visible={visible}
       transparent
@@ -113,7 +116,7 @@ export default function SongOptionsModal({
         </Animated.View>
         <Animated.View style={[styles.content, contentStyle]}>
           <View style={styles.handle} />
-          
+
           <View style={styles.header}>
               <Text style={styles.title} numberOfLines={1}>
               {song?.title || t('songOptions.untitled')}
@@ -121,42 +124,33 @@ export default function SongOptionsModal({
             </View>
 
           <View style={styles.optionsList}>
-            <TouchableOpacity 
-              style={styles.option} 
-              onPress={() => {
-                handleToggleFavorite();
-                handleClose();
-              }}
+            <TouchableOpacity
+              style={styles.option}
+              onPress={openAddToPlaylist}
             >
-              <IconSymbol 
-                name={favoriteStatus ? "heart" : "heart-outline"} 
-                size={24} 
-                color={favoriteStatus ? "#2c5af3ff" : "#fff"} 
-              />
-              <Text style={styles.optionText}>
-                {favoriteStatus ? t('songOptions.removeFromFavorites') : t('songOptions.addToFavorites')}
-              </Text>
+              <IconSymbol name="list.bullet" size={24} color="#fff" />
+              <Text style={styles.optionText}>{t('songOptions.addToPlaylist')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.option} 
+            <TouchableOpacity
+              style={styles.option}
               onPress={() => {
                 handleToggleArtistFavorite();
                 handleClose();
               }}
             >
-              <IconSymbol 
-                name={artistFavoriteStatus ? "person" : "person-add-outline"} 
-                size={24} 
-                color={artistFavoriteStatus ? "#2c5af3ff" : "#fff"} 
+              <IconSymbol
+                name={artistFavoriteStatus ? "person" : "person-add-outline"}
+                size={24}
+                color={artistFavoriteStatus ? "#2c5af3ff" : "#fff"}
               />
               <Text style={styles.optionText}>
                 {artistFavoriteStatus ? t('songOptions.removeArtistFromFavorites') : t('songOptions.addArtistToFavorites')}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.option} 
+            <TouchableOpacity
+              style={styles.option}
               onPress={() => {
                 handleOpenOriginalVideo();
                 handleClose();
@@ -169,5 +163,12 @@ export default function SongOptionsModal({
         </Animated.View>
       </View>
     </Modal>
+
+    <AddToPlaylistModal
+      visible={addToPlaylistVisible}
+      onClose={() => setAddToPlaylistVisible(false)}
+      song={song}
+    />
+    </>
   );
 }

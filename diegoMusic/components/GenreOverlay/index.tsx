@@ -7,8 +7,10 @@ import {
   ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { IconSymbol } from '@/components/IconSymbol';
 import Song from "@/components/Song";
+import AddToPlaylistModal from "@/components/AddToPlaylistModal";
 import { youtubeService } from "@/services/youtubeService";
 import { usePlayback, useQueue } from "@/context/PlayerContext";
 import { Skeleton } from "@/components/Skeleton";
@@ -43,6 +45,7 @@ export const GenreOverlay: React.FC<GenreOverlayProps> = ({
   const insets = useSafeAreaInsets();
   const [results, setResults] = useState<SongData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [saveVisible, setSaveVisible] = useState(false);
 
   useEffect(() => {
     if (isVisible && genreTitle) {
@@ -97,12 +100,25 @@ export const GenreOverlay: React.FC<GenreOverlayProps> = ({
 
   return (
     <Animated.View style={[styles.modalContainer, { opacity: fadeAnim, zIndex: 110, bottom: bottomOffset }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <StatusBar style="light" backgroundColor="#121212" />
+      <View style={{ height: insets.top, backgroundColor: '#121212' }} />
+      <View style={[styles.header, { paddingTop: 10 }]}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
           <IconSymbol name="chevron-back" size={28} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{genreTitle}</Text>
-        <View style={{ width: 28 }} />
+        <Text style={styles.headerTitle} numberOfLines={1}>{genreTitle}</Text>
+        <TouchableOpacity
+          onPress={() => setSaveVisible(true)}
+          disabled={results.length === 0}
+          hitSlop={10}
+          style={{ width: 28, alignItems: 'flex-end' }}
+        >
+          <IconSymbol
+            name="plus"
+            size={26}
+            color={results.length === 0 ? '#555' : '#fff'}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -128,6 +144,13 @@ export const GenreOverlay: React.FC<GenreOverlayProps> = ({
           </View>
         )}
       </ScrollView>
+
+      <AddToPlaylistModal
+        visible={saveVisible}
+        onClose={() => setSaveVisible(false)}
+        songs={results}
+        batchTitle={genreTitle}
+      />
     </Animated.View>
   );
 };

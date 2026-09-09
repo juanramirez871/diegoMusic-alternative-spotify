@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
+import { UPLOADS_DIR } from './services/coverUpload.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +22,7 @@ const HTTPS_ENABLED = fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE);
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d', immutable: true }));
 app.use('/api', routes);
 
 app.get('/', (req, res) => {

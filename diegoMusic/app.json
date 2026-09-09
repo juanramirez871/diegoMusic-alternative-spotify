@@ -73,9 +73,23 @@
           }
         }
       ],
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-video",
       "expo-screen-orientation",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Diego Music necesita acceso a tus fotos para elegir una portada de playlist.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "./plugins/withoutPushEntitlement"
     ],
     "experiments": {

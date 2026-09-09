@@ -6,7 +6,7 @@ import { webDownload } from '@/services/webDownload';
 
 export function usePendingDownloads(): number {
 
-  const { favorites, downloadVersion } = useLibrary();
+  const { wantedSongs: favorites, downloadVersion } = useLibrary();
   const [pending, setPending] = useState(0);
 
   useEffect(() => {

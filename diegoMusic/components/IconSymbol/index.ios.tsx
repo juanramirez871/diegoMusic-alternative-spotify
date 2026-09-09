@@ -30,6 +30,8 @@ const TO_SF: Record<string, string> = {
   'list': 'list.bullet',
   'close': 'xmark',
   'videocam-outline': 'video',
+  'image-outline': 'photo',
+  'image': 'photo',
   'radio-button-on': 'largecircle.fill.circle',
   'radio-button-off': 'circle',
   'timer': 'timer',

@@ -9,6 +9,7 @@ import { VideoView } from 'expo-video';
 import QueueModal from "@/components/QueueModal";
 import SleepTimerModal from "@/components/SleepTimerModal";
 import SongOptionsModal from "@/components/SongOptionsModal";
+import AddToPlaylistModal from "@/components/AddToPlaylistModal";
 import { useLyrics } from '@/hooks/useLyrics';
 import { useLyricsTranslation } from '@/hooks/useLyricsTranslation';
 import { useVideoPlayback } from '@/hooks/useVideoPlayback';
@@ -27,6 +28,7 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
   const pathname = usePathname();
   const prevPathnameRef = useRef(pathname);
   const [isOptionsVisible, setIsOptionsVisible] = useState(false);
+  const [isAddToPlaylistVisible, setIsAddToPlaylistVisible] = useState(false);
   const [isQueueVisible, setIsQueueVisible] = useState(false);
   const [isSleepTimerVisible, setIsSleepTimerVisible] = useState(false);
 
@@ -50,8 +52,7 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
 
   const {
     currentSong,
-    toggleFavorite,
-    isFavorite,
+    songPlaylistIds,
     playNext,
     playPrevious,
     isShuffle,
@@ -187,7 +188,7 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
 
   const displayProgress = isSeeking ? seekProgress : activeProgress;
   const progressPct = activeDuration > 0 ? Math.min(Math.max(displayProgress / activeDuration, 0), 1) : 0;
-  const isFav = isFavorite(currentSong.id);
+  const inAnyPlaylist = songPlaylistIds(currentSong.id).length > 0;
   const isRepeating = repeatMode !== 'off';
 
   return (
@@ -260,8 +261,8 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
                     <MarqueeText key={`a-${currentSong.id}`} text={currentSong.channel.name} style={styles.artist} />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => toggleFavorite(currentSong)}>
-                  <IconSymbol name={isFav ? 'heart.fill' : 'heart'} size={24} color={isFav ? '#2c5af3' : '#fff'} />
+                <TouchableOpacity onPress={() => setIsAddToPlaylistVisible(true)}>
+                  <IconSymbol name={inAnyPlaylist ? 'heart.fill' : 'heart'} size={24} color={inAnyPlaylist ? '#2c5af3' : '#fff'} />
                 </TouchableOpacity>
               </View>
 
@@ -473,6 +474,12 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
         </LinearGradient>
 
       <SongOptionsModal visible={isOptionsVisible} onClose={() => setIsOptionsVisible(false)} song={currentSong} />
+      <AddToPlaylistModal
+        visible={isAddToPlaylistVisible}
+        onClose={() => setIsAddToPlaylistVisible(false)}
+        song={currentSong}
+        preselectDefault
+      />
       <QueueModal visible={isQueueVisible} onClose={() => setIsQueueVisible(false)} />
       <SleepTimerModal visible={isSleepTimerVisible} onClose={() => setIsSleepTimerVisible(false)} />
     </>

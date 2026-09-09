@@ -48,17 +48,8 @@ export default StyleSheet.create({
     opacity: 0.7,
   },
   googleIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#4285F4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  googleIconText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
+    width: 20,
+    height: 20,
   },
   googleText: {
     color: '#111',

@@ -14,7 +14,6 @@ import {
 } from "../utils/youtubeUtils.js";
 import { getInnertube } from "../utils/innertube.js";
 import { existsSync, statSync, unlinkSync, mkdirSync, readdirSync, renameSync, utimesSync } from "fs";
-import { execSync } from "child_process";
 import ffmpegPath from "ffmpeg-static";
 
 const ipv4Agent = new https.Agent({ family: 4 });
@@ -77,38 +76,26 @@ const evictAudioCacheIfNeeded = () => {
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
 
-let cachedNodePath = null;
-const getNodePath = () => {
-  if (!cachedNodePath) {
-    try {
-      cachedNodePath = execSync("which node").toString().trim();
-    } catch {
-      console.warn("[yt-dlp] Node no encontrado, usando ruta por defecto");
-      cachedNodePath = "/usr/local/bin/node";
-    }
-  }
-  return cachedNodePath;
-};
-
-const getYtdlpBaseArgs = (playerClient = "android,web") => {
+const getYtdlpBaseArgs = (playerClient = "android,web", { useCookies = true } = {}) => {
 
   const cookiesPath = path.join(process.cwd(), "cookies.txt");
 
   const args = [
     "--no-playlist",
     "--no-part",
-    "--js-runtimes", `node:${getNodePath()}`,
+    "--sleep-requests", "0.75",
     "--user-agent", USER_AGENT,
     "--extractor-args", `youtube:player_client=${playerClient}`,
   ];
 
-  if (existsSync(cookiesPath)) {
+  if (useCookies && existsSync(cookiesPath)) {
     args.push("--cookies", cookiesPath);
   }
 
   return args;
 };
 
+const getYtdlpAudioArgs = () => getYtdlpBaseArgs("web", { useCookies: true });
 const searchVideo = async (search, limit) => {
 
   const yt = await getInnertube();
@@ -370,7 +357,7 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
   if (fullFileCached) console.log(`[ffmpeg:seek] Usando archivo cacheado: ${fullFileCached.path}`);
 
   const ytdlp = fullFileCached ? null : spawn("yt-dlp", [
-    ...getYtdlpBaseArgs(),
+    ...getYtdlpAudioArgs(),
     videoUrl,
     "-f", "ba[ext=m4a]/ba/best",
     "-o", "-",
@@ -484,7 +471,7 @@ export const streamAudioToResponse = async (url, res, startSeconds = 0, rangeHea
   const videoId = extractVideoId(url);
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const args = [
-    ...getYtdlpBaseArgs(),
+    ...getYtdlpAudioArgs(),
     videoUrl,
     "-f", "ba[ext=m4a]/ba/best",
     "-o", "-",
@@ -563,7 +550,7 @@ export const downloadAudio = (url, startSeconds = 0) => {
 
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const args = [
-      ...getYtdlpBaseArgs(),
+      ...getYtdlpAudioArgs(),
       videoUrl,
       "-f", "ba[ext=m4a]/ba/best",
       "-o", partialFile,

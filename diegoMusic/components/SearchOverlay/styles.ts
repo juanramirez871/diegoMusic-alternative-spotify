@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
-    backgroundColor: '#282828',
+    backgroundColor: '#121212',
   },
   activeSearchWrapper: {
     flex: 1,
@@ -115,5 +115,44 @@ export const styles = StyleSheet.create({
     backgroundColor: '#2c5af3ff',
     borderRadius: 2,
     marginLeft: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+    backgroundColor: '#121212',
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#333',
+  },
+  filterChipActive: {
+    backgroundColor: '#fff',
+  },
+  filterChipText: {
+    color: '#b3b3b3',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: '#121212',
+  },
+  section: {
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    paddingHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  songsSectionTitle: {
+    marginTop: 14,
   },
 });

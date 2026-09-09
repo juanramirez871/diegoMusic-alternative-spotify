@@ -15,10 +15,10 @@ import { styles } from '@/styles/TabLayoutWeb.styles';
 const SHOW_LABELS = false;
 
 const NAV_ITEMS = [
-  { route: '/',          name: 'house.fill',     labelKey: 'tabs.home'     },
-  { route: '/search',    name: 'magnifyingglass', labelKey: 'tabs.search'   },
-  { route: '/favorite',  name: 'heart.fill',      labelKey: 'tabs.favorite' },
-  { route: '/settings',  name: 'gearshape.fill',  labelKey: 'tabs.settings' },
+  { route: '/',          name: 'house.fill',       labelKey: 'tabs.home'      },
+  { route: '/search',    name: 'magnifyingglass',  labelKey: 'tabs.search'    },
+  { route: '/playlists', name: 'music.note.list',  labelKey: 'tabs.playlists' },
+  { route: '/settings',  name: 'gearshape.fill',   labelKey: 'tabs.settings'  },
 ] as const;
 
 function NavItem({ item, isActive, onNavigate }: { item: typeof NAV_ITEMS[number]; isActive: boolean; onNavigate: () => void }) {

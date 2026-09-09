@@ -6,6 +6,7 @@ backend/cookies.txt
 backend/cache/
 backend/certs/
 backend/temp/
+backend/uploads/
 .claude/
 CLAUDE.md
 diegoMusic/ios/DiegoMusic.xcworkspace/xcuserdata/

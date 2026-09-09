@@ -26,6 +26,7 @@
     "jsonwebtoken": "^9.0.3",
     "metascraper": "^5.50.0",
     "metascraper-youtube": "^5.50.0",
+    "multer": "^2.3.0",
     "node-fetch": "^3.3.2",
     "pg": "^8.20.0",
     "pg-hstore": "^2.3.4",

@@ -28,6 +28,8 @@ const SF_TO_MATERIAL: Record<string, React.ComponentProps<typeof MaterialIcons>[
   'speaker.wave.2.fill': 'volume-up',
   'speaker.slash.fill': 'volume-off',
   'arrow.down.circle.fill': 'download',
+  'arrow.down.circle': 'download',
+  'image-outline': 'image',
   'arrow.clockwise': 'refresh',
   'wifi.slash': 'wifi-off',
   'wifi': 'wifi',

@@ -2,15 +2,23 @@ import { useState, useEffect } from 'react';
 import storage from '@/services/storage';
 import {
   FAVORITES_QUEUE_KEY,
-  SEARCH_QUEUE_KEY,
   FAVORITES_DEFAULT_QUEUE_KEY,
+  PLAYLIST_QUEUE_KEY,
+  PLAYLIST_DEFAULT_QUEUE_KEY,
+  SEARCH_QUEUE_KEY,
   SEARCH_DEFAULT_QUEUE_KEY,
   QUEUE_SOURCE_KEY,
   SHUFFLE_KEY,
   REPEAT_KEY,
   RepeatMode,
+  QueueSource,
 } from './types';
 import { SongData } from '@/interfaces/Song';
+
+const queueKeyFor = (source: QueueSource) =>
+  source === 'playlist' ? PLAYLIST_QUEUE_KEY : SEARCH_QUEUE_KEY;
+const defaultQueueKeyFor = (source: QueueSource) =>
+  source === 'playlist' ? PLAYLIST_DEFAULT_QUEUE_KEY : SEARCH_DEFAULT_QUEUE_KEY;
 
 export const usePlayerQueue = () => {
 
@@ -18,26 +26,38 @@ export const usePlayerQueue = () => {
   const [defaultQueue, setDefaultQueue] = useState<SongData[]>([]);
   const [isShuffle, setIsShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
-  const [queueSource, setQueueSource] = useState<'favorites' | 'search'>('search');
+  const [queueSource, setQueueSource] = useState<QueueSource>('search');
+  const [queuePlaylistId, setQueuePlaylistId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadQueue = async () => {
       try {
         const savedSource = await storage.getItem(QUEUE_SOURCE_KEY);
-        const source: 'favorites' | 'search' = (savedSource as 'favorites' | 'search') || 'search';
+        // Legacy 'favorites' source maps to the new 'playlist' source.
+        const source: QueueSource = savedSource === 'search' ? 'search' : 'playlist';
         setQueueSource(source);
+        if (savedSource !== source) {
+          await storage.setItem(QUEUE_SOURCE_KEY, source).catch(() => {});
+        }
 
-        const queueKey = source === 'favorites' ? FAVORITES_QUEUE_KEY : SEARCH_QUEUE_KEY;
-        const defaultQueueKey = source === 'favorites' ? FAVORITES_DEFAULT_QUEUE_KEY : SEARCH_DEFAULT_QUEUE_KEY;
         const [savedQueue, savedDefaultQueue, savedShuffle] = await Promise.all([
-          storage.getItem(queueKey),
-          storage.getItem(defaultQueueKey),
-          storage.getItem(SHUFFLE_KEY)
+          storage.getItem(queueKeyFor(source)),
+          storage.getItem(defaultQueueKeyFor(source)),
+          storage.getItem(SHUFFLE_KEY),
         ]);
 
+        // Fall back to the pre-migration favorites queue keys if the new ones
+        // are empty (first run after upgrade).
+        let queueRaw = savedQueue;
+        let defaultRaw = savedDefaultQueue;
+        if (source === 'playlist' && !queueRaw) {
+          queueRaw = await storage.getItem(FAVORITES_QUEUE_KEY);
+          defaultRaw = defaultRaw || (await storage.getItem(FAVORITES_DEFAULT_QUEUE_KEY));
+        }
+
         const savedRepeat = await storage.getItem(REPEAT_KEY);
-        if (savedQueue) setQueueState(JSON.parse(savedQueue));
-        if (savedDefaultQueue) setDefaultQueue(JSON.parse(savedDefaultQueue));
+        if (queueRaw) setQueueState(JSON.parse(queueRaw));
+        if (defaultRaw) setDefaultQueue(JSON.parse(defaultRaw));
         if (savedShuffle) setIsShuffle(JSON.parse(savedShuffle));
         if (savedRepeat) setRepeatMode(JSON.parse(savedRepeat) as RepeatMode);
       }
@@ -51,8 +71,7 @@ export const usePlayerQueue = () => {
   const setQueue = async (newQueue: SongData[]) => {
     setQueueState(newQueue);
     try {
-      const queueKey = queueSource === 'favorites' ? FAVORITES_QUEUE_KEY : SEARCH_QUEUE_KEY;
-      await storage.setItem(queueKey, JSON.stringify(newQueue));
+      await storage.setItem(queueKeyFor(queueSource), JSON.stringify(newQueue));
     }
     catch (error) {
       console.error('Error persisting queue:', error);
@@ -63,7 +82,7 @@ export const usePlayerQueue = () => {
 
     const newShuffleState = !isShuffle;
     setIsShuffle(newShuffleState);
-    
+
     let newQueue = [...queue];
     if (newShuffleState) {
       for (let i = newQueue.length - 1; i > 0; i--) {
@@ -82,13 +101,12 @@ export const usePlayerQueue = () => {
     else {
       newQueue = [...defaultQueue];
     }
-    
+
     setQueueState(newQueue);
     try {
-      const queueKey = queueSource === 'favorites' ? FAVORITES_QUEUE_KEY : SEARCH_QUEUE_KEY;
       await Promise.all([
         storage.setItem(SHUFFLE_KEY, JSON.stringify(newShuffleState)),
-        storage.setItem(queueKey, JSON.stringify(newQueue))
+        storage.setItem(queueKeyFor(queueSource), JSON.stringify(newQueue)),
       ]);
     }
     catch (error) {
@@ -97,22 +115,24 @@ export const usePlayerQueue = () => {
   };
 
   const updateQueueAndSource = async (
-    song: SongData, 
-    initialQueue?: SongData[], 
-    source?: 'favorites' | 'search',
-    shuffleActive: boolean = isShuffle
+    song: SongData,
+    initialQueue?: SongData[],
+    source?: QueueSource,
+    playlistId?: string,
+    shuffleActive: boolean = isShuffle,
   ) => {
 
     let newQueue = queue;
     let newDefaultQueue = defaultQueue;
     let newSource = queueSource;
-    
+
     if (initialQueue) {
       newSource = source || 'search';
       setQueueSource(newSource);
+      setQueuePlaylistId(newSource === 'playlist' ? (playlistId ?? null) : null);
       newQueue = [...initialQueue];
       newDefaultQueue = [...initialQueue];
-      
+
       if (shuffleActive) {
         const songsToShuffle = newQueue.filter(s => s.id !== song.id);
         for (let i = songsToShuffle.length - 1; i > 0; i--) {
@@ -121,7 +141,7 @@ export const usePlayerQueue = () => {
         }
         newQueue = [song, ...songsToShuffle];
       }
-      
+
       setQueueState(newQueue);
       setDefaultQueue(newDefaultQueue);
     }
@@ -133,23 +153,21 @@ export const usePlayerQueue = () => {
     }
 
     try {
-      const queueKey = newSource === 'favorites' ? FAVORITES_QUEUE_KEY : SEARCH_QUEUE_KEY;
-      const defaultQueueKey = newSource === 'favorites' ? FAVORITES_DEFAULT_QUEUE_KEY : SEARCH_DEFAULT_QUEUE_KEY;
       const storagePromises = [
-        storage.setItem(QUEUE_SOURCE_KEY, newSource)
+        storage.setItem(QUEUE_SOURCE_KEY, newSource),
       ];
-      
+
       if (initialQueue) {
-        storagePromises.push(storage.setItem(queueKey, JSON.stringify(newQueue)));
-        storagePromises.push(storage.setItem(defaultQueueKey, JSON.stringify(newDefaultQueue)));
+        storagePromises.push(storage.setItem(queueKeyFor(newSource), JSON.stringify(newQueue)));
+        storagePromises.push(storage.setItem(defaultQueueKeyFor(newSource), JSON.stringify(newDefaultQueue)));
       }
-      
+
       await Promise.all(storagePromises);
     }
     catch (error) {
       console.error('Error persisting queue data:', error);
     }
-    
+
     return { newQueue, newDefaultQueue, newSource };
   };
 
@@ -188,6 +206,7 @@ export const usePlayerQueue = () => {
     repeatMode,
     toggleRepeat,
     queueSource,
+    queuePlaylistId,
     updateQueueAndSource,
     getNextSong,
     getPreviousSong

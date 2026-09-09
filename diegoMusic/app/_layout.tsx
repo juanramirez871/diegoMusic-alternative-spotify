@@ -101,6 +101,7 @@ function RootLayoutContent() {
       <ThemeProvider value={DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="p/[slug]" options={{ headerShown: false }} />
         </Stack>
         {!isMaximized && Platform.OS !== 'web' && <MinimizedPlayer onPress={() => setIsMaximized(true)} />}
         {Platform.OS !== 'web' && <MaximazedPlayer visible={isMaximized} onClose={() => setIsMaximized(false)} />}

@@ -47,8 +47,10 @@ export function LoginScreen() {
 
 function GoogleIcon() {
   return (
-    <View style={styles.googleIcon}>
-      <Text style={styles.googleIconText}>G</Text>
-    </View>
+    <Image
+      source={require('@/assets/images/google-logo.png')}
+      style={styles.googleIcon}
+      resizeMode="contain"
+    />
   );
 }
