@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { setAudioModeAsync } from 'expo-audio';
-import * as FileSystem from '@/utils/fileSystem';
 import storage from '@/services/storage';
 import {
   CURRENT_SONG_KEY,
@@ -15,7 +14,7 @@ import { parseDuration } from './player/utils';
 import { usePlayerStorage } from './player/usePlayerStorage';
 import { usePlaylists } from './player/usePlaylists';
 import { usePlaylistDownloads } from './player/usePlaylistDownloads';
-import { thumbUri } from './player/downloadFiles';
+import { cacheThumb, localThumbFor } from './player/downloadFiles';
 import { usePreloader } from './player/usePreloader';
 import { useAudioPlayer } from './player/useAudioPlayer';
 import { usePlayerQueue } from './player/usePlayerQueue';
@@ -49,6 +48,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const {
     playlists,
     playlistsHydrated,
+    playlistSongsHydrated,
     defaultPlaylistId,
     getPlaylistSongs,
     createPlaylist,
@@ -78,7 +78,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     downloadVersion,
     showDownloadBanner,
     syncProgress,
-  } = usePlaylistDownloads({ wantedSongs, allPlaylistSongs, hydrated: playlistsHydrated });
+  } = usePlaylistDownloads({
+    wantedSongs,
+    allPlaylistSongs,
+    hydrated: playlistsHydrated,
+    songsHydrated: playlistSongsHydrated,
+  });
 
   const [currentSong, setCurrentSong] = useState<SongData | null>(null);
   const {
@@ -284,15 +289,12 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!currentSong) return;
       let artworkUri = currentSong.thumbnail?.url;
 
-      if (isFavorite(currentSong.id)) {
-        const localThumbUri = thumbUri(currentSong.id);
-        try {
-          const info = await FileSystem.getInfoAsync(localThumbUri);
-          if (info.exists) artworkUri = localThumbUri;
-        }
-        catch (e) {
-          console.warn('Error checking local thumbnail for metadata:', e);
-        }
+      try {
+        const local = await localThumbFor(currentSong.id);
+        if (local) artworkUri = local;
+      }
+      catch (e) {
+        console.warn('Error checking local thumbnail for metadata:', e);
       }
 
       if (cancelled) return;
@@ -324,6 +326,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentSong?.id, queue, isOnline]);
 
   useEffect(() => {
+    if (!currentSong?.id) return;
+    cacheThumb(currentSong);
+  }, [currentSong?.id]);
+
+  useEffect(() => {
     if (!currentSong || queue.length === 0) return;
 
     const currentIndex = queue.findIndex((s) => s.id === currentSong.id);
@@ -342,6 +349,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (seen.has(url)) continue;
       seen.add(url);
       Image.prefetch(url).catch(() => {});
+      if (song) cacheThumb(song);
     }
   }, [currentSong?.id, queue]);
 

@@ -99,7 +99,7 @@ export function PlayerCarousel({ songs, video, audio, onEnterFullscreen }: Playe
           <View style={styles.imageContainerWrapper}>
             {songs.prev && (
               <Animated.View style={[prevImageStyle, styles.imageWrapper]}>
-                <Image key={songs.prev.id} source={prevThumbnailSource} style={styles.cover} />
+                <Image key={songs.prev.id} source={prevThumbnailSource} style={styles.cover} resizeMode="cover" />
               </Animated.View>
             )}
           </View>
@@ -116,7 +116,7 @@ export function PlayerCarousel({ songs, video, audio, onEnterFullscreen }: Playe
                   />
                 )}
                 {(!video.show || !video.isReady) && (
-                  <Image key={songs.current.id} source={currentThumbnailSource} style={styles.cover} />
+                  <Image key={songs.current.id} source={currentThumbnailSource} style={styles.cover} resizeMode="cover" />
                 )}
                 {video.isLoading && (
                   <View style={styles.loadingBarTrack}>
@@ -137,7 +137,7 @@ export function PlayerCarousel({ songs, video, audio, onEnterFullscreen }: Playe
           <View style={styles.imageContainerWrapper}>
             {songs.next && (
               <Animated.View style={nextImageStyle}>
-                <Image key={songs.next.id} source={nextThumbnailSource} style={styles.cover} />
+                <Image key={songs.next.id} source={nextThumbnailSource} style={styles.cover} resizeMode="cover" />
               </Animated.View>
             )}
           </View>

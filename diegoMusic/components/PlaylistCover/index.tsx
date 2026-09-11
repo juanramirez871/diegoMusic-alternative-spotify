@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Image, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
+import { SmartImage } from '@/components/SmartImage';
+import { usePlaylistCover } from '@/hooks/usePlaylistCover';
 
 interface Props {
   coverUrl?: string | null;
@@ -18,17 +20,23 @@ export const PlaylistCover: React.FC<Props> = ({
   borderRadius = 6,
   style,
 }) => {
-  const trimmed = typeof coverUrl === 'string' ? coverUrl.trim() : '';
-  const thumbs = previewThumbnails.filter(Boolean).slice(0, 4);
+  // Resolves to local files when offline (custom cover + song thumbnails), so
+  // playlist artwork still shows with no connection.
+  const { coverUrl: resolvedCover, thumbs } = usePlaylistCover(coverUrl, previewThumbnails);
+
   const box: StyleProp<ViewStyle> = [
     { width: size, height: size, borderRadius, overflow: 'hidden' },
     style,
   ];
 
-  if (trimmed) {
+  if (resolvedCover) {
     return (
       <View style={box}>
-        <Image source={{ uri: trimmed }} style={{ width: size, height: size }} />
+        <Image
+          source={{ uri: resolvedCover }}
+          style={{ width: size, height: size }}
+          resizeMode="cover"
+        />
       </View>
     );
   }
@@ -36,7 +44,7 @@ export const PlaylistCover: React.FC<Props> = ({
   if (thumbs.length === 0) {
     return (
       <View style={box}>
-        <Image source={FALLBACK} style={{ width: size, height: size }} />
+        <Image source={FALLBACK} style={{ width: size, height: size }} resizeMode="cover" />
       </View>
     );
   }
@@ -44,7 +52,7 @@ export const PlaylistCover: React.FC<Props> = ({
   if (thumbs.length < 4) {
     return (
       <View style={box}>
-        <Image source={{ uri: thumbs[0] }} style={{ width: size, height: size }} />
+        <SmartImage uri={thumbs[0]} style={{ width: size, height: size }} />
       </View>
     );
   }
@@ -53,7 +61,11 @@ export const PlaylistCover: React.FC<Props> = ({
   return (
     <View style={[styles.collage, box]}>
       {thumbs.map((uri, i) => (
-        <Image key={`${uri}-${i}`} source={{ uri }} style={{ width: half, height: half }} />
+        <SmartImage
+          key={`${uri}-${i}`}
+          uri={uri}
+          style={{ width: half, height: half }}
+        />
       ))}
     </View>
   );

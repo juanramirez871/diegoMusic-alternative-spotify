@@ -1,6 +1,7 @@
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { usePlayer } from "@/context/PlayerContext";
 import { SongData } from "@/interfaces/Song";
+import { SmartImage } from "@/components/SmartImage";
 import { styles } from './styles';
 
 export default function RecentPlayed() {
@@ -19,16 +20,15 @@ export default function RecentPlayed() {
   );
 
   const renderItem = (item: SongData) => {
-    const thumbnailSource = item.thumbnail?.url ? { uri: item.thumbnail.url } : require("@/assets/images/cover.jpg");
     return (
-      <TouchableOpacity 
-        style={styles.containerItem} 
+      <TouchableOpacity
+        style={styles.containerItem}
         key={item.id}
         onPress={() => playSong(item, recentPlayed)}
         activeOpacity={0.7}
       >
-        <Image
-          source={thumbnailSource}
+        <SmartImage
+          uri={item.thumbnail?.url}
           style={styles.image}
         />
         <View style={styles.textContainer}>

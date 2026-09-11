@@ -39,6 +39,7 @@ export default function Song({ data, onPress }: SongProps) {
           <Image
             source={thumbnailSource}
             style={[styles.image, isCurrentSong && { opacity: 0.6 }]}
+            resizeMode="cover"
           />
           {/* {isCurrentSong && (
             <View style={styles.playingOverlay}>

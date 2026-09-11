@@ -44,7 +44,7 @@ const QueueItem = React.memo(function QueueItem({
         style={styles.songPressArea}
         activeOpacity={0.7}
       >
-        <Image source={thumbnailSource} style={styles.thumbnail} />
+        <Image source={thumbnailSource} style={styles.thumbnail} resizeMode="cover" />
         <View style={styles.songInfo}>
           <Text
             style={[styles.songTitle, isCurrent && styles.currentSongTitle]}

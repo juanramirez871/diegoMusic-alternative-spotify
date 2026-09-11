@@ -1,4 +1,5 @@
-import { Platform, View, Text, Image, ScrollView, TouchableOpacity } from "react-native";
+import { Platform, View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { SmartImage } from "@/components/SmartImage";
 import { useEffect, useState } from "react";
 import { youtubeService } from "@/services/youtubeService";
 import { usePlayback } from "@/context/PlayerContext";
@@ -84,16 +85,15 @@ export default function ListPlayer({ channelId, query, data }: CarouselPlayerPro
         contentContainerStyle={styles.scrollContent}
       >
         {songs.map((item, index) => {
-          const thumbnailSource = item.thumbnail?.url ? { uri: item.thumbnail.url } : require("@/assets/images/cover.jpg");
           return (
-            <TouchableOpacity 
-              key={item.id + index} 
+            <TouchableOpacity
+              key={item.id + index}
               style={styles.songItem}
               onPress={() => playSong(item, songs)}
               activeOpacity={0.8}
             >
-              <Image
-                source={thumbnailSource}
+              <SmartImage
+                uri={item.thumbnail?.url}
                 style={styles.image}
               />
               <View style={styles.infoContainer}>

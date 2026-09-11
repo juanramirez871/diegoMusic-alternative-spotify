@@ -209,20 +209,11 @@ export const useAudioPlayer = (
     prev?.remove();
   };
 
-  const CROSSFADE_DURATION_MS = 600;
-  const CROSSFADE_STEPS = 12;
-  const fadeOutAndUnload = async (player: AudioPlayer) => {
-    try {
-      const stepDelay = CROSSFADE_DURATION_MS / CROSSFADE_STEPS;
-      const stepSize = 1 / CROSSFADE_STEPS;
-      let vol = 1;
-      for (let i = 0; i < CROSSFADE_STEPS; i++) {
-        vol = Math.max(0, vol - stepSize);
-        try { player.volume = vol; } catch {}
-        await new Promise<void>((res) => setTimeout(res, stepDelay));
-      }
-    } catch {}
-
+  // Hard cut between tracks: stop and tear down the outgoing player immediately.
+  // (A previous version ramped the volume down over 600ms, which sounded like
+  //  the song fading/slowing out instead of a clean switch.)
+  const fadeOutAndUnload = (player: AudioPlayer) => {
+    try { player.pause(); } catch {}
     try { player.remove(); } catch {}
   };
 

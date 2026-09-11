@@ -1,48 +1,101 @@
-import { useState, useEffect } from 'react';
-import * as FileSystem from '@/utils/fileSystem';
+import { useState, useEffect, useRef } from 'react';
 import { useLibrary } from '@/context/PlayerContext';
-import { thumbUri as thumbUriFor } from '@/context/player/downloadFiles';
+import { useNetwork } from '@/context/NetworkContext';
+import { localThumbFor } from '@/context/player/downloadFiles';
+import {
+  normalizeThumbnailUrl,
+  youtubeIdFromThumb,
+  type ThumbQuality,
+} from '@/utils/thumbnailUrl';
 
-const knownLocal = new Set<string>();
+const knownLocalUri = new Map<string, string | null>();
+const hq720Available = new Map<string, boolean>();
+const probeHq720 = async (ytId: string): Promise<boolean> => {
+  if (hq720Available.has(ytId)) return hq720Available.get(ytId)!;
+  try {
+    const r = await fetch(`https://i.ytimg.com/vi/${ytId}/hq720.jpg`, { method: 'HEAD' });
+    const ok = r.status === 200;
+    hq720Available.set(ytId, ok);
+    return ok;
+  }
+  catch {
+    return false; // don't cache a network failure
+  }
+};
 
 export const useThumbnail = (songId: string | undefined, remoteUrl: string | undefined) => {
-
   const { songPlaylistIds } = useLibrary();
+  const { isOnline } = useNetwork();
   const inAnyPlaylist = songId ? songPlaylistIds(songId).length > 0 : false;
-  const [localExists, setLocalExists] = useState(
-    () => !!songId && knownLocal.has(songId)
-  );
-  const normalizedRemote = typeof remoteUrl === 'string' ? remoteUrl.trim() : '';
 
+  const [localUri, setLocalUri] = useState<string | null>(
+    () => (songId ? knownLocalUri.get(songId) ?? null : null),
+  );
+  const ytId = youtubeIdFromThumb(remoteUrl);
+  const [remoteTier, setRemoteTier] = useState<ThumbQuality>(
+    () => (ytId && hq720Available.get(ytId) === false ? 'low' : 'high'),
+  );
+
+  const normalizedRemote = normalizeThumbnailUrl(remoteUrl, remoteTier);
+  const lastSongIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     let isMounted = true;
-    async function checkFile() {
-      if (songId && inAnyPlaylist) {
-        const thumbUri = thumbUriFor(songId);
-        try {
-          const info = await FileSystem.getInfoAsync(thumbUri);
-          if (info.exists) knownLocal.add(songId);
-          else knownLocal.delete(songId);
-          if (isMounted) setLocalExists(info.exists);
-        }
-        catch (e) {
-          if (isMounted) setLocalExists(false);
-        }
-      }
-      else {
-        if (isMounted) setLocalExists(false);
-      }
+    if (!songId) {
+      setLocalUri(null);
+      lastSongIdRef.current = undefined;
+      return;
     }
-    checkFile();
+
+    if (lastSongIdRef.current !== songId) {
+      lastSongIdRef.current = songId;
+      const known = knownLocalUri.get(songId);
+      setLocalUri(known ?? null);
+    }
+
+    (async () => {
+      const found = await localThumbFor(songId);
+      if (!isMounted) return;
+      knownLocalUri.set(songId, found);
+      setLocalUri(found);
+    })();
+
+    return () => { isMounted = false; };
+  }, [songId]);
+
+  useEffect(() => {
+    if (!songId) return;
+    let isMounted = true;
+    localThumbFor(songId).then((found) => {
+      if (!isMounted) return;
+      knownLocalUri.set(songId, found);
+      setLocalUri(found);
+    });
     return () => { isMounted = false; };
   }, [songId, inAnyPlaylist]);
 
-  if (inAnyPlaylist && localExists && songId) {
-    return { uri: thumbUriFor(songId) };
+  const willShowRemote = !localUri;
+  useEffect(() => {
+    let isMounted = true;
+    if (!ytId || !isOnline || !willShowRemote) return;
+    if (hq720Available.get(ytId) === false) { setRemoteTier('low'); return; }
+    probeHq720(ytId).then((ok) => {
+      if (isMounted && !ok) setRemoteTier('low');
+    });
+    return () => { isMounted = false; };
+  }, [ytId, isOnline, willShowRemote]);
+
+  if (inAnyPlaylist && localUri) return { uri: localUri };
+  if (!isOnline)
+  {
+    if (localUri) return { uri: localUri };
+    const known = songId ? knownLocalUri.get(songId) : null;
+    if (known) return { uri: known };
+    if (normalizedRemote) return { uri: normalizedRemote }; // last resort
+    return require('@/assets/images/cover.jpg');
   }
 
   if (normalizedRemote) return { uri: normalizedRemote };
-  if (localExists && songId) return { uri: thumbUriFor(songId) };
+  if (localUri) return { uri: localUri };
 
-  return require("@/assets/images/cover.jpg");
+  return require('@/assets/images/cover.jpg');
 };

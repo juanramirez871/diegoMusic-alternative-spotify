@@ -94,7 +94,7 @@ export const MinimizedPlayer = ({ onPress, style }: { onPress: () => void; style
   return (
     <View style={[styles.bar, style as any]}>
       <TouchableOpacity style={styles.left} onPress={onPress} activeOpacity={0.8}>
-        <Image source={thumbnailSource} style={styles.cover} />
+        <Image source={thumbnailSource} style={styles.cover} resizeMode="cover" />
         <View style={styles.info}>
           <MarqueeTitle text={currentSong.title} style={styles.title} />
           <Text style={styles.artist} numberOfLines={1}>{currentSong.channel.name}</Text>

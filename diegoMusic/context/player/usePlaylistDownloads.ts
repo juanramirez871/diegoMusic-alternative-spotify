@@ -16,6 +16,7 @@ import {
   ensureDownloadsDir,
   DOWNLOADS_DIR,
   MIN_THUMB_BYTES,
+  THUMB_SUFFIX,
 } from './downloadFiles';
 
 const DOWNLOAD_CONCURRENCY = 2;
@@ -24,9 +25,16 @@ interface Params {
   wantedSongs: SongData[];
   allPlaylistSongs: SongData[];
   hydrated: boolean;
+  /** True once every playlist's songs have been read back from storage. */
+  songsHydrated: boolean;
 }
 
-export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }: Params) => {
+export const usePlaylistDownloads = ({
+  wantedSongs,
+  allPlaylistSongs,
+  hydrated,
+  songsHydrated,
+}: Params) => {
   const { t } = useLanguage();
   const { isOnline } = useNetwork();
 
@@ -44,6 +52,8 @@ export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }
   wantedRef.current = wantedSongs;
   const allSongsRef = useRef<SongData[]>([]);
   allSongsRef.current = allPlaylistSongs;
+  const songsHydratedRef = useRef(false);
+  songsHydratedRef.current = songsHydrated;
   const syncingRef = useRef(false);
   const rerunRef = useRef(false);
 
@@ -53,26 +63,37 @@ export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }
     try {
       const wanted = wantedRef.current;
       const wantedIds = new Set(wanted.map((s) => s.id));
+      const safeToPrune =
+        songsHydratedRef.current &&
+        (wanted.length > 0 || allSongsRef.current.length === 0);
+
       if (Platform.OS !== 'web')
       {
         try {
           await ensureDownloadsDir();
           const dir = DOWNLOADS_DIR();
           const files = await FileSystem.readDirectoryAsync(dir);
-          for (const name of files)
-          {
-            const mp3 = name.endsWith('.mp3') ? name.slice(0, -4) : null;
-            const thumb = name.endsWith('_thumb.jpg') ? name.slice(0, -'_thumb.jpg'.length) : null;
-            const songId = mp3 ?? thumb;
-            if (!songId) continue;
-            const inAnyPlaylist = allSongsRef.current.some((s) => s.id === songId);
-            if (mp3 && !wantedIds.has(songId)) {
-              await FileSystem.deleteAsync(audioUri(songId), { idempotent: true }).catch(() => {});
-            }
+          if (safeToPrune) {
+            for (const name of files)
+            {
+              const mp3 = name.endsWith('.mp3') ? name.slice(0, -4) : null;
+              const thumb = name.endsWith(THUMB_SUFFIX)
+                ? name.slice(0, -THUMB_SUFFIX.length)
+                : null;
+              const songId = mp3 ?? thumb;
+              if (!songId) continue;
+              const inAnyPlaylist = allSongsRef.current.some((s) => s.id === songId);
+              if (mp3 && !wantedIds.has(songId)) {
+                await FileSystem.deleteAsync(audioUri(songId), { idempotent: true }).catch(() => {});
+              }
 
-            if (thumb && !inAnyPlaylist) {
-              await FileSystem.deleteAsync(thumbUri(songId), { idempotent: true }).catch(() => {});
+              if (thumb && !inAnyPlaylist) {
+                await FileSystem.deleteAsync(thumbUri(songId), { idempotent: true }).catch(() => {});
+              }
             }
+          }
+          else {
+            console.warn('[PlaylistDownloads] prune skipped: state not settled yet');
           }
         }
         catch (err) {
@@ -183,15 +204,12 @@ export const usePlaylistDownloads = ({ wantedSongs, allPlaylistSongs, hydrated }
     }
   }, []);
 
-  // Create the downloads folder (and migrate legacy files) once at startup so
-  // the very first sync doesn't see an empty/missing directory.
   useEffect(() => { ensureDownloadsDir(); }, []);
-
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !songsHydrated) return;
     syncAllThumbnails();
     if (isOnline) syncDownloads();
-  }, [hydrated, isOnline, wantedSongs, allPlaylistSongs]);
+  }, [hydrated, songsHydrated, isOnline, wantedSongs, allPlaylistSongs]);
 
   const removeSongDownload = useCallback(async (song: { id: string; title?: string }) => {
     await deleteSongFiles(song);

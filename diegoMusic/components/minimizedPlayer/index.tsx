@@ -80,6 +80,7 @@ export const MinimizedPlayer = ({ onPress, style }: MinimizedPlayerProps) => {
             <Image
               source={thumbnailSource}
               style={styles.cover}
+              resizeMode="cover"
             />
             <View style={styles.info}>
               <Text style={styles.title} numberOfLines={1}>{currentSong.title}</Text>

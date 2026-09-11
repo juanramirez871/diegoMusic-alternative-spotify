@@ -64,11 +64,26 @@ const metaFromApi = (p: PlaylistApiMeta): PlaylistMeta => ({
   owner: p.owner ?? null,
 });
 
-const sessionSnapshot: {
+type SessionSnapshot = {
   playlists: PlaylistMeta[] | null;
   songs: Record<string, SongData[]>;
   idMap: Record<string, number>;
-} = { playlists: null, songs: {}, idMap: {} };
+  /** True once every playlist's persisted songs have been read from storage. */
+  songsHydrated: boolean;
+};
+
+// Kept on globalThis so a Fast Refresh (dev) or a re-require of this module does
+// NOT wipe the in-memory copy — that's what makes the playlists screen paint
+// instantly on re-entry instead of flashing empty.
+const g = globalThis as unknown as { __diegoPlaylistSnapshot?: SessionSnapshot };
+const sessionSnapshot: SessionSnapshot =
+  g.__diegoPlaylistSnapshot ??
+  (g.__diegoPlaylistSnapshot = {
+    playlists: null,
+    songs: {},
+    idMap: {},
+    songsHydrated: false,
+  });
 
 export const usePlaylists = () => {
   const { token } = useAuth();
@@ -81,6 +96,10 @@ export const usePlaylists = () => {
   const [songsCache, setSongsCache] = useState<Record<string, SongData[]>>(
     () => sessionSnapshot.songs,
   );
+  // Distinct from `hydrated`: the playlist *list* can be ready a tick before the
+  // per-playlist songs are read back from storage. The download sync must not
+  // prune files until this is true, or it deletes everything as "unwanted".
+  const [songsHydrated, setSongsHydrated] = useState(() => sessionSnapshot.songsHydrated);
 
   const [, setRev] = useState(0);
   const bump = () => setRev((r) => r + 1);
@@ -146,6 +165,7 @@ export const usePlaylists = () => {
     if (sessionSnapshot.playlists !== null) {
       idMapRef.current = { ...sessionSnapshot.idMap };
       setHydrated(true);
+      if (sessionSnapshot.songsHydrated) setSongsHydrated(true);
       return () => { alive = false; };
     }
 
@@ -182,7 +202,11 @@ export const usePlaylists = () => {
           await persistMeta(list);
           await persistSongs(defaultId, favSongs);
           if (!migrationDone) await storage.setItem(PLAYLIST_MIGRATION_DONE_KEY, '1');
-          if (alive) setSongsCache({ [defaultId]: favSongs });
+          if (alive) {
+            setSongsCache({ [defaultId]: favSongs });
+            sessionSnapshot.songsHydrated = true;
+            setSongsHydrated(true);
+          }
         }
 
         if (!list.some((p) => p.isDefault)) {
@@ -218,11 +242,23 @@ export const usePlaylists = () => {
             sessionSnapshot.songs = next;
             return next;
           });
+        })
+        .finally(() => {
+          if (!alive) return;
+          // Every playlist's persisted songs have now been read (or failed to,
+          // in which case an empty cache is the truth). Only now is it safe for
+          // the download layer to prune "unwanted" files.
+          sessionSnapshot.songsHydrated = true;
+          setSongsHydrated(true);
         });
       }
       catch (err) {
         console.error('[Playlists] hydrate error:', err);
-        if (alive) setHydrated(true);
+        if (alive) {
+          setHydrated(true);
+          sessionSnapshot.songsHydrated = true;
+          setSongsHydrated(true);
+        }
       }
     };
 
@@ -236,10 +272,12 @@ export const usePlaylists = () => {
       sessionSnapshot.playlists = null;
       sessionSnapshot.songs = {};
       sessionSnapshot.idMap = {};
+      sessionSnapshot.songsHydrated = false;
       idMapRef.current = {};
       setPlaylists([]);
       setSongsCache({});
       setHydrated(false);
+      setSongsHydrated(false);
       setHydrateSeq((n) => n + 1);
     }
     prevTokenRef.current = token;
@@ -891,6 +929,7 @@ export const usePlaylists = () => {
     // playlist API
     playlists,
     playlistsHydrated: hydrated,
+    playlistSongsHydrated: songsHydrated,
     defaultPlaylistId,
     getPlaylistSongs,
     createPlaylist,

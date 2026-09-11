@@ -610,6 +610,73 @@ const VIDEO_QUALITY_FORMAT = {
   high: "22/best[height<=1080][ext=mp4][acodec!=none]/best[height<=720][ext=mp4][acodec!=none]/best[ext=mp4]/18/best",
 };
 
+const VIDEO_CLIENT_FALLBACKS = [
+  { client: "web", useCookies: true },
+  { client: "web,tv", useCookies: true },
+  { client: "android,web", useCookies: true },
+  { client: "android_vr", useCookies: false },
+];
+
+const runYtdlpGetVideoUrl = (videoUrl, formatSelector, { client, useCookies }) =>
+  new Promise((resolve, reject) => {
+    const args = [
+      ...getYtdlpBaseArgs(client, { useCookies }),
+      "--force-ipv4",
+      "-f", formatSelector,
+      "-g",
+      videoUrl,
+    ];
+
+    let stdout = "";
+    let stderr = "";
+    const proc = spawn("yt-dlp", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PATH: process.env.PATH },
+    });
+
+    proc.stdout.on("data", (d) => (stdout += d.toString()));
+    proc.stderr.on("data", (d) => (stderr += d.toString()));
+    proc.on("close", (code) => {
+      if (code === 0) {
+        const lines = stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        if (lines.length > 1) {
+          console.warn(`[getVideoDirectSource] múltiples URLs (${client}): ${lines.join(" | ")}`);
+        }
+        const firstUrl = lines.find((l) => /^https?:\/\//i.test(l));
+        if (!firstUrl) {
+          return reject(new Error(`sin URL directa (${client})`));
+        }
+        resolve(firstUrl);
+      }
+      else {
+        reject(new Error(stderr || `yt-dlp salió con código ${code} (${client})`));
+      }
+    });
+
+    proc.on("error", (err) => reject(err));
+  });
+
+const videoUrlIsPlayable = async (candidateUrl) => {
+  try {
+    const r = await fetch(candidateUrl, {
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Referer": "https://www.youtube.com/",
+        "Origin": "https://www.youtube.com",
+        "Range": "bytes=0-1",
+      },
+      agent: ipv4Agent,
+    });
+    // Consume/close the tiny body so the socket is freed.
+    try { r.body?.destroy?.(); } catch {}
+    return r.status === 200 || r.status === 206;
+  }
+  catch {
+    return false;
+  }
+};
+
 export const getVideoDirectSource = async (url, quality = 'low') => {
 
   const videoId = extractVideoId(url);
@@ -625,50 +692,33 @@ export const getVideoDirectSource = async (url, quality = 'low') => {
   const formatSelector = VIDEO_QUALITY_FORMAT[quality] ?? VIDEO_QUALITY_FORMAT.low;
 
   console.log(`[getVideoDirectSource] Obteniendo URL para: ${videoId} (calidad: ${quality})`);
-  const args = [
-    "--no-playlist",
-    "--no-part",
-    "--force-ipv4",
-    "--extractor-args", "youtube:player_client=android_vr",
-    "-f", formatSelector,
-    "-g",
-    videoUrl,
-  ];
 
-  const directUrl = await new Promise((resolve, reject) => {
-    let stdout = "";
-    let stderr = "";
-    const proc = spawn("yt-dlp", args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, PATH: process.env.PATH }
-    });
+  let directUrl = null;
+  const errors = [];
+  for (const opt of VIDEO_CLIENT_FALLBACKS) {
+    let candidate;
+    try {
+      candidate = await runYtdlpGetVideoUrl(videoUrl, formatSelector, opt);
+    }
+    catch (err) {
+      errors.push(`${opt.client}: ${err.message}`);
+      continue;
+    }
 
-    proc.stdout.on("data", (d) => (stdout += d.toString()));
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("close", (code) => {
-      if (code === 0) {
-        const lines = stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-        console.log(`[getVideoDirectSource] yt-dlp retornó ${lines.length} línea(s)`);
-        if (lines.length > 1) console.warn(`[getVideoDirectSource] ADVERTENCIA: múltiples URLs (formato merged). Líneas: ${lines.join(' | ')}`);
-        const firstUrl = lines.find((l) => /^https?:\/\//i.test(l));
-        if (!firstUrl) {
-          console.error(`[getVideoDirectSource] Error: No se obtuvo URL directa del video. stdout: ${stdout}, stderr: ${stderr}`);
-          return reject(new Error("No se obtuvo URL directa del video"));
-        }
-        console.log(`[getVideoDirectSource] URL seleccionada: ${firstUrl.substring(0, 80)}...`);
-        resolve(firstUrl);
-      }
-      else {
-        console.error(`[getVideoDirectSource] Error (código ${code}): ${stderr}`);
-        reject(new Error(stderr || `yt-dlp salió con código ${code}`));
-      }
-    });
+    const looksHls = /hls_playlist|\.m3u8|manifest\.googlevideo/i.test(candidate);
+    if (looksHls || (await videoUrlIsPlayable(candidate))) {
+      console.log(`[getVideoDirectSource] cliente OK: ${opt.client}`);
+      directUrl = candidate;
+      break;
+    }
+    errors.push(`${opt.client}: URL no reproducible (403)`);
+    console.warn(`[getVideoDirectSource] ${opt.client} devolvió URL 403, probando siguiente`);
+  }
 
-    proc.on("error", (err) => {
-      console.error(`[getVideoDirectSource] Error de proceso: ${err.message}`);
-      reject(err);
-    });
-  });
+  if (!directUrl) {
+    console.error(`[getVideoDirectSource] todos los clientes fallaron: ${errors.join(" ; ")}`);
+    throw new Error("No se obtuvo URL directa del video");
+  }
 
   const lower = String(directUrl).toLowerCase();
   const isHls = lower.includes("hls_playlist") || lower.includes(".m3u8") || lower.includes("manifest.googlevideo");

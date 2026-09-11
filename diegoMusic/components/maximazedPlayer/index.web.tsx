@@ -198,6 +198,7 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
             source={thumbnailSource}
             style={styles.backgroundImage}
             blurRadius={36}
+            resizeMode="cover"
           />
           <View style={styles.backgroundOverlay} />
 
@@ -250,6 +251,7 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
                   <Image
                     source={thumbnailSource}
                     style={styles.coverImage}
+                    resizeMode="cover"
                   />
                 )}
               </View>
