@@ -78,6 +78,8 @@ const ICONS: Record<string, IconEntry> = {
   'cellular-outline': { icon: Icons.Signal },
   'play-video': { icon: Icons.MonitorPlay },
   'translate': { icon: Icons.Languages },
+  'auto-scroll': { icon: Icons.ArrowDownWideNarrow },
+  'auto-scroll-off': { icon: Icons.PauseOctagon },
 };
 
 export function IconSymbol({

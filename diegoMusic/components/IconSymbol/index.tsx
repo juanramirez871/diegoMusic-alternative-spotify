@@ -78,6 +78,8 @@ const SF_TO_MATERIAL: Record<string, React.ComponentProps<typeof MaterialIcons>[
   'timer-outline': 'timer',
   'translate': 'translate',
   'play-video': 'smart-display',
+  'auto-scroll': 'sync',
+  'auto-scroll-off': 'sync-disabled',
 };
 
 export function IconSymbol({

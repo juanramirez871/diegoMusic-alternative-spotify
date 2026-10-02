@@ -94,6 +94,8 @@ export interface Translations {
     musicTag: string;
     mostPlayedTitle: string;
     noMostPlayed: string;
+    forYouTitle: string;
+    discoverTitle: string;
   };
   stats: {
     title: string;

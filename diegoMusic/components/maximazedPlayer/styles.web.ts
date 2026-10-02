@@ -242,4 +242,72 @@ export const styles = StyleSheet.create({
   translateToggleTextActive: {
     color: '#2c5af3ff',
   },
+
+  lyricsFullscreenBtn: {
+    padding: 4,
+  },
+  fullscreenLyricsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    backgroundColor: '#0a0a0ff5',
+  },
+  fullscreenLyricsBackgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.35,
+    transform: [{ scale: 1.12 }],
+  },
+  fullscreenLyricsBackgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  fullscreenLyricsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 32,
+    paddingVertical: 20,
+  },
+  fullscreenLyricsHeaderInfo: { flex: 1, overflow: 'hidden', marginHorizontal: 20 },
+  fullscreenLyricsTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  fullscreenLyricsArtist: { color: '#b3b3b3', fontSize: 13, marginTop: 2, textAlign: 'center' },
+  fullscreenLyricsScroll: {
+    flex: 1,
+    paddingHorizontal: '12%' as any,
+  },
+  fullscreenLyricsScrollContent: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  fullscreenLyricLine: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 34,
+    fontWeight: '800',
+    lineHeight: 52,
+    textAlign: 'center',
+  },
+  fullscreenLyricOriginalLine: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22,
+    marginTop: 10,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  fullscreenLyricLineActive: {
+    color: '#fff',
+  },
+  fullscreenLyricPlain: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 22,
+    lineHeight: 36,
+    textAlign: 'center',
+  },
+  fullscreenLyricOriginalPlain: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
 });

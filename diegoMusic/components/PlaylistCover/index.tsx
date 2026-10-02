@@ -20,10 +20,8 @@ export const PlaylistCover: React.FC<Props> = ({
   borderRadius = 6,
   style,
 }) => {
-  // Resolves to local files when offline (custom cover + song thumbnails), so
-  // playlist artwork still shows with no connection.
+  
   const { coverUrl: resolvedCover, thumbs } = usePlaylistCover(coverUrl, previewThumbnails);
-
   const box: StyleProp<ViewStyle> = [
     { width: size, height: size, borderRadius, overflow: 'hidden' },
     style,
@@ -32,11 +30,7 @@ export const PlaylistCover: React.FC<Props> = ({
   if (resolvedCover) {
     return (
       <View style={box}>
-        <Image
-          source={{ uri: resolvedCover }}
-          style={{ width: size, height: size }}
-          resizeMode="cover"
-        />
+        <SmartImage uri={resolvedCover} style={{ width: size, height: size }} />
       </View>
     );
   }

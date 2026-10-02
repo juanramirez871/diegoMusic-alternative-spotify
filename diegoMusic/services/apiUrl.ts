@@ -19,7 +19,7 @@ const getNativeApiUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL_NATIVE) return process.env.EXPO_PUBLIC_API_URL_NATIVE;
   if (Platform.OS === 'ios') return `http://Juans-MacBook-Pro.local:${NATIVE_PORT}/api`;
 
-  return `http://192.168.1.34:${NATIVE_PORT}/api`;
+  return `http://192.168.1.67:${NATIVE_PORT}/api`;
 };
 
 export const API_URL = Platform.OS === 'web' ? WEB_API_URL : getNativeApiUrl();

@@ -36,6 +36,25 @@ const Song = sequelize.define('Song', {
     type: DataTypes.DATE,
     allowNull: true,
   },
+  genres: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    allowNull: false,
+    defaultValue: [],
+  },
+  tags: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    allowNull: false,
+    defaultValue: [],
+  },
+  enrichedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  enrichmentAttempts: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+  },
 }, {
   tableName: 'songs',
 });

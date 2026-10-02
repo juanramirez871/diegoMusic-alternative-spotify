@@ -84,18 +84,17 @@ export const useThumbnail = (songId: string | undefined, remoteUrl: string | und
     return () => { isMounted = false; };
   }, [ytId, isOnline, willShowRemote]);
 
-  if (inAnyPlaylist && localUri) return { uri: localUri };
-  if (!isOnline)
-  {
-    if (localUri) return { uri: localUri };
-    const known = songId ? knownLocalUri.get(songId) : null;
-    if (known) return { uri: known };
+
+  if (localUri) return { uri: localUri };
+  const known = songId ? knownLocalUri.get(songId) : null;
+  if (known) return { uri: known };
+
+  if (!isOnline) {
     if (normalizedRemote) return { uri: normalizedRemote }; // last resort
     return require('@/assets/images/cover.jpg');
   }
 
   if (normalizedRemote) return { uri: normalizedRemote };
-  if (localUri) return { uri: localUri };
 
   return require('@/assets/images/cover.jpg');
 };

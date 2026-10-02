@@ -10,6 +10,8 @@ import { useNetwork } from "@/context/NetworkContext";
 import { useLibrary } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
+import { useRecommendations } from "@/hooks/useRecommendations";
+import { useDiscovery } from "@/hooks/useDiscovery";
 import { ArtistData, SongData } from "@/interfaces/Song";
 import { IconSymbol } from '@/components/IconSymbol';
 import React, { useMemo, useRef, useState } from "react";
@@ -46,6 +48,8 @@ export default function HomeScreen() {
         .slice(0, 10),
     [songPlays]
   );
+  const { songs: recommendedSongs } = useRecommendations(20);
+  const { songs: discoverySongs } = useDiscovery();
   const [selectedArtist, setSelectedArtist] = useState<ArtistData | null>(null);
   const [isArtistOverlayVisible, setIsArtistOverlayVisible] = useState(false);
   const artistFadeAnim = useRef(new Animated.Value(0)).current;
@@ -145,11 +149,19 @@ export default function HomeScreen() {
                     <RecentPlayed />
                   </View>
 
-                  {/* Todo: Add music you might like for V.4 DiegoMusic */}
-                  {/* <View>
-                    <Text style={styles.title}>Music you might like</Text>
-                    <CarouselPlayer />
-                  </View> */}
+                  {recommendedSongs.length > 0 && (
+                    <View>
+                      <Text style={styles.title}>{t('home.forYouTitle')}</Text>
+                      <ListPlayer data={recommendedSongs} />
+                    </View>
+                  )}
+
+                  {discoverySongs.length > 0 && (
+                    <View>
+                      <Text style={styles.title}>{t('home.discoverTitle')}</Text>
+                      <ListPlayer data={discoverySongs} />
+                    </View>
+                  )}
 
                   <View style={styles.musicArtistContainer}>
                     {displayArtists.map((artist) => (

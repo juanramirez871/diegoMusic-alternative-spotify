@@ -47,8 +47,8 @@ export const usePlaylistCover = (
     .filter(Boolean)
     .slice(0, 4)
     .map((u) => normalizeThumbnailUrl(u));
-  const key = `${trimmedCover}|${remoteThumbs.join(',')}`;
 
+  const key = `${trimmedCover}|${remoteThumbs.join(',')}`;
   const seed = (): ResolvedCover => {
     if (Platform.OS === 'web') {
       return { coverUrl: trimmedCover || null, thumbs: remoteThumbs };
@@ -83,13 +83,8 @@ export const usePlaylistCover = (
       if (cancelled) return;
 
       setResolved({
-        // Prefer the local cover when offline; online keep the remote (freshest).
-        coverUrl: trimmedCover
-          ? (!isOnline && localCover ? localCover : trimmedCover)
-          : null,
-        thumbs: remoteThumbs.map((r, i) =>
-          !isOnline && localThumbs[i] ? localThumbs[i]! : r,
-        ),
+        coverUrl: localCover ?? (trimmedCover || null),
+        thumbs: remoteThumbs.map((r, i) => localThumbs[i] ?? r),
       });
     })();
 

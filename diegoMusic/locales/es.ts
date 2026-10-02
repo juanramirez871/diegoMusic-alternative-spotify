@@ -94,6 +94,8 @@ const es: Translations = {
     musicTag: 'Musica',
     mostPlayedTitle: 'Tu musica mas reproducida',
     noMostPlayed: 'Aun no tienes musica mas reproducida ( ˘︹˘ )',
+    forYouTitle: 'Hecho para ti',
+    discoverTitle: 'Descubre nuevos artistas',
   },
   stats: {
     title: 'Tus estadisticas',

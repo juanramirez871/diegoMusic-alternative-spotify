@@ -13,6 +13,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { LyricsPanelProps, LyricsViewProps } from '@/interfaces/Song';
 import { COMPACT_LINE_HEIGHT, full, panel, searchStyles, translation } from './styles';
 import { useLyricsTranslation } from '@/hooks/useLyricsTranslation';
+import { useLyricsAutoScrollPreference, useLyricsLineScroller } from '@/hooks/useLyricsAutoScroll';
 
 const ManualSearchInput = ({ defaultQuery, onSearch }: { defaultQuery?: string; onSearch: (q: string) => void }) => {
 
@@ -55,6 +56,8 @@ export function LyricsPanel({
 
   const scrollRef = useRef<ScrollView>(null);
   const { t } = useLanguage();
+  const { autoScrollEnabled, toggleAutoScroll } = useLyricsAutoScrollPreference();
+  const scroller = useLyricsLineScroller(scrollRef, autoScrollEnabled);
   const {
     translationEnabled,
     setTranslationEnabled,
@@ -80,6 +83,14 @@ export function LyricsPanel({
     translationEnabled && translatedPlain && originalPlainText
   );
 
+  useEffect(() => {
+    scroller.resetMeasurements();
+  }, [syncedLyrics, plainLyrics]);
+
+  useEffect(() => {
+    scroller.scrollToLine(currentLineIndex);
+  }, [currentLineIndex, autoScrollEnabled]);
+
   return (
     <View style={panel.container}>
       <View style={panel.header}>
@@ -93,6 +104,16 @@ export function LyricsPanel({
               name="translate"
               size={16}
               color={translationEnabled ? '#2c5af3ff' : '#b3b3b3'}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={toggleAutoScroll}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <IconSymbol
+              name={autoScrollEnabled ? 'auto-scroll' : 'auto-scroll-off'}
+              size={16}
+              color={autoScrollEnabled ? '#2c5af3ff' : '#b3b3b3'}
             />
           </TouchableOpacity>
           <TouchableOpacity onPress={onExpand} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -184,12 +205,18 @@ export function LyricsPanel({
           showsVerticalScrollIndicator={false}
           scrollEnabled
           nestedScrollEnabled
+          onLayout={(e) => scroller.onViewportLayout(e.nativeEvent.layout.height)}
         >
           {displaySynced.map((item, index) => {
             const isActive = index === currentLineIndex;
             const originalText = originalSyncedLines[index] ?? item.text;
             return (
-              <TouchableOpacity key={index} onPress={() => onSeek(item.time)} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={index}
+                onPress={() => onSeek(item.time)}
+                activeOpacity={0.7}
+                onLayout={(e) => scroller.onLineLayout(index, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+              >
                 {showOriginalSyncedAboveTranslation && (
                   <Text style={panel.originalLine} numberOfLines={2}>
                     {originalText}
@@ -238,6 +265,8 @@ export function LyricsView({
   const scrollRef = useRef<ScrollView>(null);
   const [showEdit, setShowEdit] = useState(false);
   const { t } = useLanguage();
+  const { autoScrollEnabled, toggleAutoScroll } = useLyricsAutoScrollPreference();
+  const scroller = useLyricsLineScroller(scrollRef, autoScrollEnabled);
   const {
     translationEnabled,
     setTranslationEnabled,
@@ -271,6 +300,14 @@ export function LyricsView({
     if (syncedLyrics || plainLyrics) setShowEdit(false);
   }, [syncedLyrics, plainLyrics]);
 
+  useEffect(() => {
+    scroller.resetMeasurements();
+  }, [syncedLyrics, plainLyrics]);
+
+  useEffect(() => {
+    scroller.scrollToLine(currentLineIndex);
+  }, [currentLineIndex, autoScrollEnabled]);
+
   const showSearchInput = onManualSearch && (showEdit || (!loading && isOnline && notFound));
 
   return (
@@ -290,6 +327,16 @@ export function LyricsView({
               name="translate"
               size={18}
               color={translationEnabled ? '#2c5af3ff' : '#b3b3b3'}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={toggleAutoScroll}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <IconSymbol
+              name={autoScrollEnabled ? 'auto-scroll' : 'auto-scroll-off'}
+              size={18}
+              color={autoScrollEnabled ? '#2c5af3ff' : '#b3b3b3'}
             />
           </TouchableOpacity>
           {onManualSearch && (
@@ -395,12 +442,18 @@ export function LyricsView({
           ref={scrollRef}
           contentContainerStyle={full.listContent}
           showsVerticalScrollIndicator={false}
+          onLayout={(e) => scroller.onViewportLayout(e.nativeEvent.layout.height)}
         >
           {displaySynced.map((item, index) => {
             const isActive = index === currentLineIndex;
             const originalText = originalSyncedLines[index] ?? item.text;
             return (
-              <TouchableOpacity key={index} onPress={() => onSeek(item.time)} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={index}
+                onPress={() => onSeek(item.time)}
+                activeOpacity={0.7}
+                onLayout={(e) => scroller.onLineLayout(index, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+              >
                 {showOriginalSyncedAboveTranslation && (
                   <Text style={full.originalLine}>{originalText}</Text>
                 )}

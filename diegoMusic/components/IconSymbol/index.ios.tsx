@@ -43,6 +43,9 @@ const TO_SF: Record<string, string> = {
   'wifi.slash': 'wifi.slash',
   'cellular': 'cellularbars',
   'cellular-outline': 'cellularbars',
+  'translate': 'character.bubble',
+  'auto-scroll': 'arrow.up.and.down.text.horizontal',
+  'auto-scroll-off': 'text.alignleft',
 };
 
 export function IconSymbol({

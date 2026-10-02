@@ -3,7 +3,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'expo-router';
-import { Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated as RNAnimated, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { VideoView } from 'expo-video';
 import QueueModal from "@/components/QueueModal";
@@ -12,6 +12,7 @@ import SongOptionsModal from "@/components/SongOptionsModal";
 import AddToPlaylistModal from "@/components/AddToPlaylistModal";
 import { useLyrics } from '@/hooks/useLyrics';
 import { useLyricsTranslation } from '@/hooks/useLyricsTranslation';
+import { useLyricsAutoScrollPreference, useLyricsLineScroller } from '@/hooks/useLyricsAutoScroll';
 import { useVideoPlayback } from '@/hooks/useVideoPlayback';
 import { useNetwork } from '@/context/NetworkContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -48,7 +49,42 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
   const [showLyricsEdit, setShowLyricsEdit] = useState(false);
   const [lyricsSearchQuery, setLyricsSearchQuery] = useState('');
   const [isVideoFullscreen, setIsVideoFullscreen] = useState(false);
+  const [isLyricsFullscreen, setIsLyricsFullscreen] = useState(false);
+  const [isLyricsFullscreenRendered, setIsLyricsFullscreenRendered] = useState(false);
+  const lyricsFullscreenProgress = useRef(new RNAnimated.Value(0)).current;
   const videoViewRef = useRef<VideoView>(null);
+
+  const openLyricsFullscreen = () => {
+    fullscreenScroller.resetMeasurements();
+    setIsLyricsFullscreenRendered(true);
+    setIsLyricsFullscreen(true);
+  };
+
+  const closeLyricsFullscreen = () => {
+    setIsLyricsFullscreen(false);
+  };
+
+  useEffect(() => {
+    RNAnimated.timing(lyricsFullscreenProgress, {
+      toValue: isLyricsFullscreen ? 1 : 0,
+      duration: 280,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished && !isLyricsFullscreen) setIsLyricsFullscreenRendered(false);
+    });
+  }, [isLyricsFullscreen]);
+
+  const lyricsFullscreenAnimatedStyle = {
+    opacity: lyricsFullscreenProgress,
+    transform: [
+      {
+        translateY: lyricsFullscreenProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [24, 0],
+        }),
+      },
+    ],
+  };
 
   const {
     currentSong,
@@ -127,6 +163,10 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
   const showOriginalPlainAboveTranslation = Boolean(translationEnabled && translatedPlain && originalPlainText);
   const thumbnailSource = useThumbnail(currentSong?.id, currentSong?.thumbnail?.url);
   const lyricsScrollRef = useRef<ScrollView>(null);
+  const fullscreenLyricsScrollRef = useRef<ScrollView>(null);
+  const { autoScrollEnabled, toggleAutoScroll } = useLyricsAutoScrollPreference();
+  const panelScroller = useLyricsLineScroller(lyricsScrollRef, autoScrollEnabled);
+  const fullscreenScroller = useLyricsLineScroller(fullscreenLyricsScrollRef, autoScrollEnabled);
   const playTint = useSharedValue(0);
 
   useEffect(() => {
@@ -143,6 +183,9 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
     setSeekProgress(0);
     setIsSeeking(false);
     setShowLyricsEdit(false);
+    if (isLyricsFullscreen) closeLyricsFullscreen();
+    panelScroller.resetMeasurements();
+    fullscreenScroller.resetMeasurements();
   }, [currentSong?.id]);
 
   useEffect(() => {
@@ -162,6 +205,11 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
   }, [isLoading, isSeeking, progress]);
 
   const currentLineIndex = lyrics.getCurrentLineIndex(isSeeking ? seekProgress : progress);
+
+  useEffect(() => {
+    panelScroller.scrollToLine(currentLineIndex);
+    if (isLyricsFullscreen) fullscreenScroller.scrollToLine(currentLineIndex);
+  }, [currentLineIndex, isLyricsFullscreen, autoScrollEnabled]);
 
   const playIconAnimatedStyle = useAnimatedStyle(() => ({
     opacity: 1 - playTint.value * 0.6,
@@ -348,6 +396,23 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
                   >
                     <IconSymbol name="pencil-outline" size={16} color={showLyricsEdit ? '#fff' : '#b3b3b3'} />
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={toggleAutoScroll}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <IconSymbol
+                      name={autoScrollEnabled ? 'auto-scroll' : 'auto-scroll-off'}
+                      size={16}
+                      color={autoScrollEnabled ? '#2c5af3ff' : '#b3b3b3'}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={openLyricsFullscreen}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.lyricsFullscreenBtn}
+                  >
+                    <IconSymbol name="expand-outline" size={16} color="#b3b3b3" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -446,12 +511,22 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
                 </View>
               )}
               {!lyrics.loading && !translating && displaySynced && displaySynced.length > 0 && (
-                <ScrollView ref={lyricsScrollRef} style={styles.lyricsScroll} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                  ref={lyricsScrollRef}
+                  style={styles.lyricsScroll}
+                  showsVerticalScrollIndicator={false}
+                  onLayout={(e) => panelScroller.onViewportLayout(e.nativeEvent.layout.height)}
+                >
                   {displaySynced.map((line, i) => {
                     const isActive = i === currentLineIndex;
                     const originalText = originalSyncedLines[i] ?? line.text;
                     return (
-                      <TouchableOpacity key={i} onPress={() => handleSeek(line.time / duration)} activeOpacity={0.7}>
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => handleSeek(line.time / duration)}
+                        activeOpacity={0.7}
+                        onLayout={(e) => panelScroller.onLineLayout(i, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+                      >
                         {showOriginalSyncedAboveTranslation && (
                           <Text style={styles.lyricOriginalLine}>{originalText}</Text>
                         )}
@@ -474,6 +549,106 @@ export const MaximazedPlayer = ({ visible, onClose }: MaximazedPlayerProps) => {
             </View>
           </View>
         </LinearGradient>
+
+      {isLyricsFullscreenRendered && (
+        <RNAnimated.View style={[styles.fullscreenLyricsOverlay, lyricsFullscreenAnimatedStyle]}>
+          <Image
+            source={thumbnailSource}
+            style={styles.fullscreenLyricsBackgroundImage}
+            blurRadius={48}
+            resizeMode="cover"
+          />
+          <View style={styles.fullscreenLyricsBackgroundOverlay} />
+
+          <View style={styles.fullscreenLyricsHeader}>
+            <TouchableOpacity onPress={closeLyricsFullscreen} style={styles.headerBtn}>
+              <IconSymbol name="chevron-down" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.fullscreenLyricsHeaderInfo}>
+              <MarqueeText key={`fs-t-${currentSong.id}`} text={currentSong.title} style={styles.fullscreenLyricsTitle} />
+              <MarqueeText key={`fs-a-${currentSong.id}`} text={currentSong.channel.name} style={styles.fullscreenLyricsArtist} />
+            </View>
+            <TouchableOpacity
+              onPress={toggleAutoScroll}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ marginRight: 14 }}
+            >
+              <IconSymbol
+                name={autoScrollEnabled ? 'auto-scroll' : 'auto-scroll-off'}
+                size={18}
+                color={autoScrollEnabled ? '#2c5af3ff' : '#b3b3b3'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setTranslationEnabled(!translationEnabled)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <IconSymbol
+                name="translate"
+                size={18}
+                color={translationEnabled ? '#2c5af3ff' : '#b3b3b3'}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {(lyrics.loading || translating) && (
+            <View style={styles.lyricsCenter}>
+              <LoadingSpinner />
+            </View>
+          )}
+          {!lyrics.loading && !translating && !isOnline && (
+            <View style={styles.lyricsCenter}>
+              <Text style={styles.lyricsEmpty}>{t('lyrics.offline')}</Text>
+            </View>
+          )}
+          {!lyrics.loading && !translating && isOnline && lyrics.notFound && (
+            <View style={styles.lyricsCenter}>
+              <Text style={styles.lyricsEmpty}>{t('lyrics.notFound')}</Text>
+            </View>
+          )}
+          {!lyrics.loading && !translating && displaySynced && displaySynced.length > 0 && (
+            <ScrollView
+              ref={fullscreenLyricsScrollRef}
+              style={styles.fullscreenLyricsScroll}
+              contentContainerStyle={styles.fullscreenLyricsScrollContent}
+              showsVerticalScrollIndicator={false}
+              onLayout={(e) => fullscreenScroller.onViewportLayout(e.nativeEvent.layout.height)}
+            >
+              {displaySynced.map((line, i) => {
+                const isActive = i === currentLineIndex;
+                const originalText = originalSyncedLines[i] ?? line.text;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => handleSeek(line.time / duration)}
+                    activeOpacity={0.7}
+                    onLayout={(e) => fullscreenScroller.onLineLayout(i, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+                  >
+                    {showOriginalSyncedAboveTranslation && (
+                      <Text style={styles.fullscreenLyricOriginalLine}>{originalText}</Text>
+                    )}
+                    <Text style={[styles.fullscreenLyricLine, isActive && styles.fullscreenLyricLineActive]}>
+                      {line.text}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+          {!lyrics.loading && !translating && displayPlain && !displaySynced && (
+            <ScrollView
+              style={styles.fullscreenLyricsScroll}
+              contentContainerStyle={styles.fullscreenLyricsScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {showOriginalPlainAboveTranslation && (
+                <Text style={styles.fullscreenLyricOriginalPlain}>{originalPlainText}</Text>
+              )}
+              <Text style={styles.fullscreenLyricPlain}>{displayPlain}</Text>
+            </ScrollView>
+          )}
+        </RNAnimated.View>
+      )}
 
       <SongOptionsModal visible={isOptionsVisible} onClose={() => setIsOptionsVisible(false)} song={currentSong} />
       <AddToPlaylistModal

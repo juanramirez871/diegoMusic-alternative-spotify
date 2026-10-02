@@ -94,6 +94,8 @@ const ja: Translations = {
     musicTag: '音楽',
     mostPlayedTitle: 'あなたの再生回数が多い曲',
     noMostPlayed: 'まだ再生データがありません ( ˘︹˘ )',
+    forYouTitle: 'あなたのためのおすすめ',
+    discoverTitle: '新しいアーティストを発見',
   },
   stats: {
     title: 'あなたの統計',

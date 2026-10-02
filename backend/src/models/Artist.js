@@ -20,6 +20,15 @@ const Artist = sequelize.define('Artist', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  genres: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    allowNull: false,
+    defaultValue: [],
+  },
+  genresFetchedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
 }, {
   tableName: 'artists',
 });

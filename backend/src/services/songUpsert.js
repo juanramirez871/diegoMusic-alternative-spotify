@@ -1,4 +1,5 @@
 import { Artist, Song } from '../models/index.js';
+import { enrichSongInBackground } from './genreService.js';
 
 export async function upsertSong({
   youtubeId,
@@ -47,6 +48,7 @@ export async function upsertSong({
     if (Object.keys(patch).length > 0) await song.update(patch);
   }
 
+  if (!song.enrichedAt) enrichSongInBackground(song);
   return song;
 }
 

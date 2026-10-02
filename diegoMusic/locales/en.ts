@@ -94,6 +94,8 @@ const en: Translations = {
     musicTag: 'Music',
     mostPlayedTitle: 'Your most played music',
     noMostPlayed: 'No most played music yet ( ˘︹˘ )',
+    forYouTitle: 'Made for you',
+    discoverTitle: 'Discover new artists',
   },
   stats: {
     title: 'Your Stats',
