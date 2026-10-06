@@ -640,6 +640,11 @@ const VIDEO_CLIENT_FALLBACKS = [
   { client: "web,tv", useCookies: true },
   { client: "android,web", useCookies: true },
   { client: "android_vr", useCookies: false },
+  // null = let yt-dlp pick its own client automatically (no --extractor-args
+  // at all). Last resort for videos where every explicit client reports
+  // "Only images are available" under YouTube's SABR-only rollout, the same
+  // issue worked around for audio in getAudioDirectUrl/downloadAudio.
+  { client: null, useCookies: true },
 ];
 
 const runYtdlpGetVideoUrl = (videoUrl, formatSelector, { client, useCookies }) =>
