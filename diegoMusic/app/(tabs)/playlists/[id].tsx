@@ -15,7 +15,6 @@ import Song from "@/components/Song";
 import { PlaylistCover } from "@/components/PlaylistCover";
 import { usePlayer } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { usePendingDownloads } from "@/hooks/usePendingDownloads";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { styles } from "@/styles/FavoriteScreen.styles";
@@ -55,26 +54,22 @@ const local = StyleSheet.create({
   },
   downloadBanner: {
     position: 'absolute',
-    bottom: 90,
-    alignSelf: 'center',
+    bottom: 22,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(20,20,20,0.94)',
+    backgroundColor: 'rgba(28,28,28,0.92)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.12)',
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    borderColor: 'rgba(255,255,255,0.1)',
+    maxWidth: 170,
   },
   downloadBannerText: {
-    color: '#fff',
-    fontSize: 13,
+    color: '#e6e6e6',
+    fontSize: 11,
     fontWeight: '600',
   },
 });
@@ -93,6 +88,8 @@ export default function PlaylistDetailScreen() {
     toggleShuffle,
     unfollowPlaylist,
     syncProgress,
+    webFolderMissing,
+    requestWebFolder,
     currentSong,
   } = usePlayer();
   const { t } = useLanguage();
@@ -103,7 +100,6 @@ export default function PlaylistDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [optionsVisible, setOptionsVisible] = useState(false);
-  const pendingDownloads = usePendingDownloads();
 
   useEffect(() => {
     if (!id) return;
@@ -341,15 +337,26 @@ export default function PlaylistDetailScreen() {
         />
       )}
 
-      {pendingDownloads > 0 && playlist?.downloadEnabled && (
+      {playlist?.downloadEnabled && syncProgress && (
         <View style={local.downloadBanner}>
-          <IconSymbol name="arrow.down.circle.fill" size={15} color="#2c5af3" />
-          <Text style={local.downloadBannerText}>
-            {syncProgress
-              ? t('playlist.downloading', { done: syncProgress.done, total: syncProgress.total })
-              : t('playlist.songCount', { count: pendingDownloads })}
+          <LoadingSpinner size={12} color="#2c5af3" />
+          <Text style={local.downloadBannerText} numberOfLines={1}>
+            {t('playlist.downloading', { done: syncProgress.done, total: syncProgress.total })}
           </Text>
         </View>
+      )}
+
+      {playlist?.downloadEnabled && !syncProgress && webFolderMissing && (
+        <TouchableOpacity
+          style={local.downloadBanner}
+          onPress={requestWebFolder}
+          activeOpacity={0.8}
+        >
+          <IconSymbol name="arrow.down.circle.fill" size={13} color="#2c5af3" />
+          <Text style={local.downloadBannerText} numberOfLines={1}>
+            {t('playlist.chooseFolder')}
+          </Text>
+        </TouchableOpacity>
       )}
     </View>
   );

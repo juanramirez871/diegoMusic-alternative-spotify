@@ -85,8 +85,11 @@ const getYtdlpBaseArgs = (playerClient = "android,web", { useCookies = true } = 
     "--no-part",
     "--sleep-requests", "0.75",
     "--user-agent", USER_AGENT,
-    "--extractor-args", `youtube:player_client=${playerClient}`,
   ];
+
+  if (playerClient) {
+    args.push("--extractor-args", `youtube:player_client=${playerClient}`);
+  }
 
   if (useCookies && existsSync(cookiesPath)) {
     args.push("--cookies", cookiesPath);
@@ -317,11 +320,21 @@ export const getAudioDirectUrl = async (url) => {
 
   try {
     result = await Promise.any(attempts);
-  } catch {
+  }
+  catch {
     console.warn(`[getAudioDirectUrl] Innertube y android_vr fallaron, último recurso android,web: ${videoId}`);
-    const directUrl = await runYtdlpGetUrl(videoUrl, "android,web");
-    const validated = await validateDirectUrl(directUrl);
-    result = { url: directUrl, mimeType: 'audio/mp4', validated };
+    try {
+      const directUrl = await runYtdlpGetUrl(videoUrl, "android,web");
+      const validated = await validateDirectUrl(directUrl);
+      if (!validated) throw new Error("URL de android,web no válida");
+      result = { url: directUrl, mimeType: 'audio/mp4', validated };
+    }
+    catch {
+      console.warn(`[getAudioDirectUrl] android,web falló, último recurso sin player_client fijo: ${videoId}`);
+      const directUrl = await runYtdlpGetUrl(videoUrl, null);
+      const validated = await validateDirectUrl(directUrl);
+      result = { url: directUrl, mimeType: 'audio/mp4', validated };
+    }
   }
 
   urlCache.set(cacheKey, { data: result, timestamp: Date.now() });
@@ -524,33 +537,11 @@ export const streamAudioToResponse = async (url, res, startSeconds = 0, rangeHea
   });
 };
 
-export const downloadAudio = (url, startSeconds = 0) => {
-
-  const videoId = extractVideoId(url);
-  const cacheKey = `${videoId}-${startSeconds}`;
-
-  if (downloadCache.has(cacheKey)) {
-    console.log(`[yt-dlp] Cache hit: ${cacheKey}`);
-    return downloadCache.get(cacheKey);
-  }
-
-  const finalFile = path.join(AUDIO_CACHE_DIR, `${cacheKey}.m4a`);
-  const partialFile = `${finalFile}.download`;
-  const promise = new Promise((resolve, reject) => {
-    if (existsSync(finalFile)) {
-      const existingSize = statSync(finalFile).size;
-      if (existingSize > 5000) {
-        console.log(`[yt-dlp] Archivo en cache (${existingSize} bytes): ${finalFile}`);
-        return resolve(finalFile);
-      }
-      console.warn(`[yt-dlp] Archivo en cache corrupto (${existingSize} bytes), eliminando y re-descargando: ${finalFile}`);
-      try { unlinkSync(finalFile); } catch {}
-    }
-    try { unlinkSync(partialFile); } catch {}
-
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+const AUDIO_DOWNLOAD_CLIENT_FALLBACKS = ["web", null];
+const runYtdlpDownload = (videoUrl, partialFile, startSeconds, playerClient) =>
+  new Promise((resolve, reject) => {
     const args = [
-      ...getYtdlpAudioArgs(),
+      ...getYtdlpBaseArgs(playerClient, { useCookies: true }),
       videoUrl,
       "-f", "ba[ext=m4a]/ba/best",
       "-o", partialFile,
@@ -569,19 +560,10 @@ export const downloadAudio = (url, startSeconds = 0) => {
       if (code === 0) {
         const finalSize = existsSync(partialFile) ? statSync(partialFile).size : 0;
         if (finalSize <= 5000) {
-          console.error(`[yt-dlp] Descarga terminó con archivo inválido (${finalSize} bytes): ${partialFile}`);
           try { unlinkSync(partialFile); } catch {}
           return reject(new Error(`yt-dlp produjo archivo vacío (${finalSize} bytes)`));
         }
-        try {
-          renameSync(partialFile, finalFile);
-        } catch (err) {
-          try { unlinkSync(partialFile); } catch {}
-          return reject(err);
-        }
-        console.log(`[yt-dlp] Descarga completa (${finalSize} bytes): ${finalFile}`);
-        evictAudioCacheIfNeeded();
-        resolve(finalFile);
+        resolve(finalSize);
       }
       else {
         try { unlinkSync(partialFile); } catch {}
@@ -594,6 +576,49 @@ export const downloadAudio = (url, startSeconds = 0) => {
       reject(err);
     });
   });
+
+export const downloadAudio = (url, startSeconds = 0) => {
+
+  const videoId = extractVideoId(url);
+  const cacheKey = `${videoId}-${startSeconds}`;
+
+  if (downloadCache.has(cacheKey)) {
+    console.log(`[yt-dlp] Cache hit: ${cacheKey}`);
+    return downloadCache.get(cacheKey);
+  }
+
+  const finalFile = path.join(AUDIO_CACHE_DIR, `${cacheKey}.m4a`);
+  const partialFile = `${finalFile}.download`;
+  const promise = (async () => {
+    if (existsSync(finalFile)) {
+      const existingSize = statSync(finalFile).size;
+      if (existingSize > 5000) {
+        console.log(`[yt-dlp] Archivo en cache (${existingSize} bytes): ${finalFile}`);
+        return finalFile;
+      }
+      console.warn(`[yt-dlp] Archivo en cache corrupto (${existingSize} bytes), eliminando y re-descargando: ${finalFile}`);
+      try { unlinkSync(finalFile); } catch {}
+    }
+    try { unlinkSync(partialFile); } catch {}
+
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    let lastErr = null;
+    for (const playerClient of AUDIO_DOWNLOAD_CLIENT_FALLBACKS) {
+      try {
+        const finalSize = await runYtdlpDownload(videoUrl, partialFile, startSeconds, playerClient);
+        renameSync(partialFile, finalFile);
+        console.log(`[yt-dlp] Descarga completa (${finalSize} bytes, client=${playerClient ?? 'auto'}): ${finalFile}`);
+        evictAudioCacheIfNeeded();
+        return finalFile;
+      }
+      catch (err) {
+        lastErr = err;
+        console.warn(`[yt-dlp] Descarga con client=${playerClient ?? 'auto'} falló: ${err.message}`);
+      }
+    }
+    throw lastErr ?? new Error("yt-dlp: todos los clientes fallaron");
+  })();
 
   promise.finally(() => {
     downloadCache.delete(cacheKey);

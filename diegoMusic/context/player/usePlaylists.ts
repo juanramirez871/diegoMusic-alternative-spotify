@@ -72,9 +72,6 @@ type SessionSnapshot = {
   songsHydrated: boolean;
 };
 
-// Kept on globalThis so a Fast Refresh (dev) or a re-require of this module does
-// NOT wipe the in-memory copy — that's what makes the playlists screen paint
-// instantly on re-entry instead of flashing empty.
 const g = globalThis as unknown as { __diegoPlaylistSnapshot?: SessionSnapshot };
 const sessionSnapshot: SessionSnapshot =
   g.__diegoPlaylistSnapshot ??
@@ -910,6 +907,17 @@ export const usePlaylists = () => {
     [wantedSongIds],
   );
 
+  const displayPlaylists = useMemo(() => {
+    let changed = false;
+    const next = playlists.map((p) => {
+      const songs = songsCache[p.id];
+      if (!songs || songs.length === p.songCount) return p;
+      changed = true;
+      return { ...p, songCount: songs.length, previewThumbnails: previewFrom(songs) };
+    });
+    return changed ? next : playlists;
+  }, [playlists, songsCache]);
+
   const defaultPlaylist = playlists.find((p) => p.isDefault) ?? null;
   const defaultPlaylistId = defaultPlaylist?.id ?? null;
   const favorites = (defaultPlaylistId && songsCache[defaultPlaylistId]) || [];
@@ -927,7 +935,7 @@ export const usePlaylists = () => {
 
   return {
     // playlist API
-    playlists,
+    playlists: displayPlaylists,
     playlistsHydrated: hydrated,
     playlistSongsHydrated: songsHydrated,
     defaultPlaylistId,

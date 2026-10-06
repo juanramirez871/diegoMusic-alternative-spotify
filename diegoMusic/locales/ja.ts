@@ -26,6 +26,7 @@ const ja: Translations = {
     deleteConfirm: '「{name}」を削除しますか？この操作は取り消せません。',
     downloadToggle: '曲をダウンロード',
     downloading: 'ダウンロード中… {done}/{total}',
+    chooseFolder: 'ダウンロード先フォルダを選択',
     byAuthor: '{author}',
     byYou: 'あなた',
     savedByCount: '{count}人が保存',
@@ -35,7 +36,6 @@ const ja: Translations = {
     removeFromLibrary: 'ライブラリから削除',
     shareLink: 'リンクを共有',
     unavailable: '利用できなくなりました',
-    reorder: '並べ替え',
     done: '完了',
   },
   addToPlaylist: {

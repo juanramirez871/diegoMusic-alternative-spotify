@@ -26,6 +26,7 @@ const es: Translations = {
     deleteConfirm: '¿Eliminar "{name}"? Esta acción no se puede deshacer.',
     downloadToggle: 'Descargar canciones',
     downloading: 'Descargando… {done}/{total}',
+    chooseFolder: 'Elegir carpeta de descargas',
     byAuthor: 'de {author}',
     byYou: 'Tú',
     savedByCount: '{count} guardados',
@@ -35,7 +36,6 @@ const es: Translations = {
     removeFromLibrary: 'Quitar de tu biblioteca',
     shareLink: 'Compartir enlace',
     unavailable: 'Ya no está disponible',
-    reorder: 'Reordenar',
     done: 'Listo',
   },
   addToPlaylist: {

@@ -26,6 +26,7 @@ export interface Translations {
     deleteConfirm: string;
     downloadToggle: string;
     downloading: string;
+    chooseFolder: string;
     byAuthor: string;
     byYou: string;
     savedByCount: string;
@@ -35,7 +36,6 @@ export interface Translations {
     removeFromLibrary: string;
     shareLink: string;
     unavailable: string;
-    reorder: string;
     done: string;
   };
   addToPlaylist: {

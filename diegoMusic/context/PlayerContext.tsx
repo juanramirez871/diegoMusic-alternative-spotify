@@ -78,6 +78,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     downloadVersion,
     showDownloadBanner,
     syncProgress,
+    webFolderMissing,
+    requestWebFolder,
   } = usePlaylistDownloads({
     wantedSongs,
     allPlaylistSongs,
@@ -402,6 +404,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     wantedSongs,
     songIsWanted,
     syncProgress,
+    webFolderMissing,
+    requestWebFolder,
   }), [
     favorites, favoriteArtists, recentPlayed, mostPlayed, artistPlays, songPlays,
     toggleFavorite, toggleFavoriteArtist, isFavorite, isFavoriteArtist,
@@ -412,7 +416,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     deletePlaylist, reorderPlaylists, addSongToPlaylists, addSongsToPlaylists, removeSongFromPlaylist,
     reorderPlaylistSongs, isSongInPlaylist, songPlaylistIds,
     setPlaylistVisibility, followPlaylist, unfollowPlaylist,
-    wantedSongs, songIsWanted, syncProgress,
+    wantedSongs, songIsWanted, syncProgress, webFolderMissing, requestWebFolder,
   ]);
 
   const playbackValue = useMemo<PlaybackContextType>(() => ({

@@ -85,6 +85,10 @@ export const resolveDownloadedMap = async (
 };
 
 export const peekDownloaded = (songId: string): boolean | undefined => store.map.get(songId);
+
+export const markDownloaded = (songId: string, downloaded: boolean): void => {
+  store.map.set(songId, downloaded);
+};
 export function useIsDownloaded(songId?: string, title?: string): boolean {
 
   const { downloadVersion } = useLibrary();

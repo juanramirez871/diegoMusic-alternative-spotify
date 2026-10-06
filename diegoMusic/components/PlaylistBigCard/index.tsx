@@ -19,9 +19,7 @@ export const PlaylistBigCard: React.FC<Props> = ({ playlist, onPress }) => {
     ? t('playlist.unavailable')
     : playlist.kind === 'followed' && playlist.owner
       ? t('playlist.byAuthor', { author: playlist.owner.name })
-      : playlist.kind === 'owned' && playlist.visibility === 'public'
-        ? t('playlist.savedByCount', { count: playlist.savesCount ?? 0 })
-        : t('playlist.songCount', { count: playlist.songCount });
+      : t('playlist.songCount', { count: playlist.songCount });
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>

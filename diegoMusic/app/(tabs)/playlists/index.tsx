@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,6 @@ import {
   Platform,
   useWindowDimensions,
 } from "react-native";
-import DraggableFlatList, {
-  ScaleDecorator,
-  type RenderItemParams,
-} from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,7 +18,6 @@ import { PlaylistWebCard } from '@/components/PlaylistWebCard';
 import CreatePlaylistModal from '@/components/CreatePlaylistModal';
 import { usePlayer } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
-import type { PlaylistMeta } from "@/interfaces/Playlist";
 import { styles } from "@/styles/PlaylistsScreen.styles";
 
 const WEB_MAX_WIDTH = 1280;
@@ -35,9 +30,8 @@ export default function PlaylistsScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const { width } = useWindowDimensions();
-  const { playlists, playlistsHydrated, reorderPlaylists } = usePlayer();
+  const { playlists, playlistsHydrated } = usePlayer();
   const [createVisible, setCreateVisible] = useState(false);
-  const [editing, setEditing] = useState(false);
 
   const isWeb = Platform.OS === 'web';
 
@@ -56,7 +50,6 @@ export default function PlaylistsScreen() {
   const defaultPlaylist = sorted.find((p) => p.isDefault) ?? null;
   const rest = useMemo(() => sorted.filter((p) => !p.isDefault), [sorted]);
   const useBigCards = !isWeb && sorted.length > 0 && sorted.length <= 3;
-  const canReorder = rest.length >= 2;
   const grid = useMemo(() => {
     const contentWidth = Math.min(width, WEB_MAX_WIDTH) - WEB_H_PADDING * 2;
     const columns = Math.max(
@@ -69,33 +62,6 @@ export default function PlaylistsScreen() {
 
     return { contentWidth, columns, tileWidth };
   }, [width]);
-
-  const handleDragEnd = useCallback(
-    ({ data }: { data: PlaylistMeta[] }) => {
-      const ordered = [
-        ...(defaultPlaylist ? [defaultPlaylist.id] : []),
-        ...[...data].reverse().map((p) => p.id),
-      ];
-      reorderPlaylists(ordered);
-    },
-    [defaultPlaylist, reorderPlaylists],
-  );
-
-  const renderDragItem = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<PlaylistMeta>) => (
-      <ScaleDecorator>
-        <PlaylistCard
-          playlist={item}
-          onPress={() => (editing ? undefined : openPlaylist(item.id))}
-          onLongPress={editing ? drag : undefined}
-          dragging={isActive}
-          showHandle={editing}
-        />
-      </ScaleDecorator>
-    ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editing],
-  );
 
   const plusButton = (
     <TouchableOpacity onPress={() => setCreateVisible(true)} hitSlop={12}>
@@ -127,22 +93,6 @@ export default function PlaylistsScreen() {
                 </Text>
               </View>
               <View style={styles.webHeaderActions}>
-                {canReorder && (
-                  <TouchableOpacity
-                    onPress={() => setEditing((e) => !e)}
-                    hitSlop={12}
-                    style={[styles.webReorderBtn, editing && styles.webReorderBtnActive]}
-                  >
-                    <IconSymbol
-                      name={editing ? 'checkmark' : 'reorder-two'}
-                      size={16}
-                      color={editing ? '#121212' : '#fff'}
-                    />
-                    <Text style={[styles.webReorderText, editing && styles.webReorderTextActive]}>
-                      {editing ? t('playlist.done') : t('playlist.reorder')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
                 <TouchableOpacity
                   onPress={() => setCreateVisible(true)}
                   style={styles.webCreateBtn}
@@ -163,24 +113,6 @@ export default function PlaylistsScreen() {
                 >
                   <Text style={styles.emptyBtnText}>{t('library.createPlaylist')}</Text>
                 </TouchableOpacity>
-              </View>
-            ) : editing ? (
-              // Reorder mode falls back to the compact draggable list.
-              <View style={styles.webReorderList}>
-                {defaultPlaylist && (
-                  <PlaylistCard
-                    playlist={defaultPlaylist}
-                    onPress={() => openPlaylist(defaultPlaylist.id)}
-                  />
-                )}
-                <DraggableFlatList
-                  data={rest}
-                  keyExtractor={(p) => p.id}
-                  renderItem={renderDragItem}
-                  onDragEnd={handleDragEnd}
-                  activationDistance={8}
-                  showsVerticalScrollIndicator={false}
-                />
               </View>
             ) : (
               <View style={[styles.webGrid, { gap: WEB_GRID_GAP }]}>
@@ -217,13 +149,6 @@ export default function PlaylistsScreen() {
         <View style={styles.headerRow}>
           <Text style={styles.title}>{t('library.title')}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            {canReorder && !useBigCards && (
-              <TouchableOpacity onPress={() => setEditing((e) => !e)} hitSlop={12}>
-                <Text style={[styles.editBtn, editing && styles.editBtnActive]}>
-                  {editing ? t('playlist.done') : t('playlist.reorder')}
-                </Text>
-              </TouchableOpacity>
-            )}
             {plusButton}
           </View>
         </View>
@@ -248,24 +173,22 @@ export default function PlaylistsScreen() {
             </View>
           </ScrollView>
         ) : (
-          <View style={styles.list}>
-            {defaultPlaylist && (
-              <PlaylistCard
-                playlist={defaultPlaylist}
-                onPress={() => openPlaylist(defaultPlaylist.id)}
-              />
-            )}
-            <DraggableFlatList
-              data={rest}
-              keyExtractor={(p) => p.id}
-              renderItem={renderDragItem}
-              onDragEnd={handleDragEnd}
-              // Drag only starts from the long-press we wire in reorder mode.
-              activationDistance={20}
-              contentContainerStyle={{ paddingBottom: 120 }}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.list}>
+              {defaultPlaylist && (
+                <PlaylistCard
+                  playlist={defaultPlaylist}
+                  onPress={() => openPlaylist(defaultPlaylist.id)}
+                />
+              )}
+              {rest.map((p) => (
+                <PlaylistCard key={p.id} playlist={p} onPress={() => openPlaylist(p.id)} />
+              ))}
+            </View>
+          </ScrollView>
         )}
       </View>
 

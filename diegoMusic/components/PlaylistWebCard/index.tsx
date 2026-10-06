@@ -26,9 +26,7 @@ export const PlaylistWebCard: React.FC<Props> = ({ playlist, onPress, width }) =
     ? t('playlist.unavailable')
     : playlist.kind === 'followed' && playlist.owner
       ? t('playlist.byAuthor', { author: playlist.owner.name })
-      : playlist.kind === 'owned' && playlist.visibility === 'public'
-        ? t('playlist.savedByCount', { count: playlist.savesCount ?? 0 })
-        : t('playlist.songCount', { count: playlist.songCount });
+      : t('playlist.songCount', { count: playlist.songCount });
 
   return (
     <Pressable

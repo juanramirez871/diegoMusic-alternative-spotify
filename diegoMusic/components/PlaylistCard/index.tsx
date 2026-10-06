@@ -8,28 +8,15 @@ import type { PlaylistMeta } from '@/interfaces/Playlist';
 interface Props {
   playlist: PlaylistMeta;
   onPress: () => void;
-  onLongPress?: () => void;
-  /** Row is being dragged — dim it slightly. */
-  dragging?: boolean;
-  /** Show the drag handle instead of the chevron (reorder mode). */
-  showHandle?: boolean;
 }
 
-export const PlaylistCard: React.FC<Props> = ({
-  playlist,
-  onPress,
-  onLongPress,
-  dragging,
-  showHandle,
-}) => {
+export const PlaylistCard: React.FC<Props> = ({ playlist, onPress }) => {
   const { t } = useLanguage();
 
   return (
     <TouchableOpacity
-      style={[styles.row, dragging && styles.rowDragging]}
+      style={styles.row}
       onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={180}
       activeOpacity={0.7}
     >
       <PlaylistCover
@@ -54,9 +41,7 @@ export const PlaylistCard: React.FC<Props> = ({
               ? t('playlist.unavailable')
               : playlist.kind === 'followed' && playlist.owner
                 ? t('playlist.byAuthor', { author: playlist.owner.name })
-                : playlist.kind === 'owned' && playlist.visibility === 'public'
-                  ? t('playlist.savedByCount', { count: playlist.savesCount ?? 0 })
-                  : t('playlist.songCount', { count: playlist.songCount })}
+                : t('playlist.songCount', { count: playlist.songCount })}
           </Text>
           {playlist.downloadEnabled && (
             <IconSymbol
@@ -68,11 +53,7 @@ export const PlaylistCard: React.FC<Props> = ({
           )}
         </View>
       </View>
-      <IconSymbol
-        name={showHandle ? 'reorder-two' : 'chevron.right'}
-        size={showHandle ? 22 : 18}
-        color="#8f8f8f"
-      />
+      <IconSymbol name="chevron.right" size={18} color="#8f8f8f" />
     </TouchableOpacity>
   );
 };
@@ -83,11 +64,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingVertical: 8,
-  },
-  rowDragging: {
-    opacity: 0.9,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 10,
   },
   info: {
     flex: 1,

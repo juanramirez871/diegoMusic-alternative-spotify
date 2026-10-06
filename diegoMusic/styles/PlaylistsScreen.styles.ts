@@ -25,14 +25,6 @@ export const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
   },
-  editBtn: {
-    color: '#b3b3b3',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  editBtnActive: {
-    color: '#2c5af3',
-  },
   list: {
     flex: 1,
     gap: 4,
@@ -106,28 +98,6 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  webReorderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
-  },
-  webReorderBtnActive: {
-    backgroundColor: '#fff',
-    borderColor: '#fff',
-  },
-  webReorderText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  webReorderTextActive: {
-    color: '#121212',
-  },
   webCreateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -145,9 +115,5 @@ export const styles = StyleSheet.create({
   webGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-  },
-  webReorderList: {
-    maxWidth: 640,
-    gap: 4,
   },
 });

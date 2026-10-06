@@ -26,6 +26,7 @@ const en: Translations = {
     deleteConfirm: 'Delete "{name}"? This cannot be undone.',
     downloadToggle: 'Download songs',
     downloading: 'Downloading… {done}/{total}',
+    chooseFolder: 'Choose downloads folder',
     byAuthor: 'by {author}',
     byYou: 'You',
     savedByCount: '{count} saved',
@@ -35,7 +36,6 @@ const en: Translations = {
     removeFromLibrary: 'Remove from your library',
     shareLink: 'Share link',
     unavailable: 'No longer available',
-    reorder: 'Reorder',
     done: 'Done',
   },
   addToPlaylist: {

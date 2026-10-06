@@ -5,6 +5,7 @@ import { webDownload } from '@/services/webDownload';
 import { sendDownloadCompleteNotification } from '@/services/notifications';
 import { useLanguage } from '@/context/LanguageContext';
 import { useNetwork } from '@/context/NetworkContext';
+import { markDownloaded } from '@/hooks/useIsDownloaded';
 import type { SongData } from '@/interfaces/Song';
 import {
   audioUri,
@@ -25,7 +26,6 @@ interface Params {
   wantedSongs: SongData[];
   allPlaylistSongs: SongData[];
   hydrated: boolean;
-  /** True once every playlist's songs have been read back from storage. */
   songsHydrated: boolean;
 }
 
@@ -42,7 +42,7 @@ export const usePlaylistDownloads = ({
   const bump = useCallback(() => setDownloadVersion((v) => v + 1), []);
   const [showDownloadBanner, setShowDownloadBanner] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
-
+  const [webFolderMissing, setWebFolderMissing] = useState(false);
   const triggerBanner = useCallback(() => {
     setShowDownloadBanner(true);
     setTimeout(() => setShowDownloadBanner(false), 2000);
@@ -85,6 +85,7 @@ export const usePlaylistDownloads = ({
               const inAnyPlaylist = allSongsRef.current.some((s) => s.id === songId);
               if (mp3 && !wantedIds.has(songId)) {
                 await FileSystem.deleteAsync(audioUri(songId), { idempotent: true }).catch(() => {});
+                markDownloaded(songId, false);
               }
 
               if (thumb && !inAnyPlaylist) {
@@ -121,6 +122,7 @@ export const usePlaylistDownloads = ({
 
       if (missing.length === 0) {
         setSyncProgress(null);
+        setWebFolderMissing(false);
         bump();
         return;
       }
@@ -130,11 +132,17 @@ export const usePlaylistDownloads = ({
         return;
       }
 
-      if (Platform.OS === 'web') {
-        const folderOk = (await webDownload.hasFolder()) || (await webDownload.pickFolder());
-        if (!folderOk && webDownload.isSupported()) {
-          setSyncProgress(null);
-          return;
+      if (Platform.OS === 'web')
+      {
+        if (!(await webDownload.hasFolder())) {
+          if (webDownload.isSupported()) {
+            setWebFolderMissing(true);
+            setSyncProgress(null);
+            return;
+          }
+        }
+        else {
+          setWebFolderMissing(false);
         }
       }
 
@@ -148,8 +156,10 @@ export const usePlaylistDownloads = ({
           const song = queue.shift();
           if (!song) break;
           const result = await downloadSongAudio(song);
-          if (result === 'downloaded') {
-            anyDownloaded = true;
+          if (result === 'downloaded' || result === 'skipped')
+          {
+            if (result === 'downloaded') anyDownloaded = true;
+            markDownloaded(song.id, true);
             await downloadSongThumb(song);
             if (AppState.currentState !== 'active') {
               sendDownloadCompleteNotification(
@@ -213,13 +223,25 @@ export const usePlaylistDownloads = ({
 
   const removeSongDownload = useCallback(async (song: { id: string; title?: string }) => {
     await deleteSongFiles(song);
+    markDownloaded(song.id, false);
     bump();
   }, [bump]);
+
+  const requestWebFolder = useCallback(async () => {
+    const ok = await webDownload.pickFolder();
+    if (ok) {
+      setWebFolderMissing(false);
+      syncDownloads();
+    }
+    return ok;
+  }, [syncDownloads]);
 
   return {
     downloadVersion,
     showDownloadBanner,
     syncProgress,
+    webFolderMissing,
+    requestWebFolder,
     syncDownloads,
     syncAllThumbnails,
     removeSongDownload,

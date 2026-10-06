@@ -96,6 +96,8 @@ export interface LibraryContextType {
   wantedSongs: SongData[];
   songIsWanted: (songId: string) => boolean;
   syncProgress: { done: number; total: number } | null;
+  webFolderMissing: boolean;
+  requestWebFolder: () => Promise<boolean>;
   getPlaylistSongs: (playlistId: string) => Promise<SongData[]>;
   createPlaylist: (name: string, coverUrl?: string | null) => Promise<string | null>;
   renamePlaylist: (playlistId: string, name: string) => Promise<void>;
