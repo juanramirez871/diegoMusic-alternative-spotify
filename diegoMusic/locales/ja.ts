@@ -7,6 +7,10 @@ const ja: Translations = {
     search: '検索',
     settings: '設定',
   },
+  topBar: {
+    browse: '見つける',
+    logout: 'ログアウト',
+  },
   library: {
     title: 'プレイリスト',
     createPlaylist: 'プレイリストを作成',
@@ -22,6 +26,7 @@ const ja: Translations = {
     rename: '名前を変更',
     cover: 'カバーを変更',
     removeCover: 'カバーを削除',
+    coverRejected: 'この画像はカバーに使用できません。別の画像をお試しください（5MB未満のJPG、PNG、WebP）。',
     delete: 'プレイリストを削除',
     deleteConfirm: '「{name}」を削除しますか？この操作は取り消せません。',
     downloadToggle: '曲をダウンロード',
@@ -91,7 +96,12 @@ const ja: Translations = {
     videoQualityHigh: '高画質',
   },
   home: {
+    allTag: 'すべて',
     musicTag: '音楽',
+    artistsTag: 'アーティスト',
+    madeFor: 'おすすめ',
+    showAll: 'すべて表示',
+    showLess: '一部を表示',
     mostPlayedTitle: 'あなたの再生回数が多い曲',
     noMostPlayed: 'まだ再生データがありません ( ˘︹˘ )',
     forYouTitle: 'あなたのためのおすすめ',
@@ -144,6 +154,7 @@ const ja: Translations = {
   favoriteArtists: {
     title: 'お気に入りのアーティスト',
     empty: 'お気に入りのアーティストがまだありません (ㆆ_ㆆ)',
+    artistLabel: 'アーティスト',
   },
   songOptions: {
     untitled: '無題',

@@ -1,5 +1,5 @@
 import { ArtistData, SongData } from "@/interfaces/Song";
-import type { PlaylistMeta } from "@/interfaces/Playlist";
+import type { CoverChangeResult, PlaylistMeta } from "@/interfaces/Playlist";
 
 
 export const CURRENT_SONG_KEY = '@current_song';
@@ -23,6 +23,10 @@ export const PLAYLIST_SONGS_PREFIX = '@playlist_songs_';
 export const PLAYLIST_ID_MAP_KEY = '@playlist_local_id_map';
 export const PENDING_PLAYLIST_OPS_KEY = '@pending_playlist_ops';
 export const PLAYLIST_MIGRATION_DONE_KEY = '@player_migration_playlists_done';
+/** Set when the session expired: local changes since then may never have reached the server. */
+export const PLAYLISTS_NEEDS_RESYNC_KEY = '@playlists_needs_resync';
+/** Id of the account the local playlist library belongs to. */
+export const PLAYLISTS_OWNER_KEY = '@playlists_owner';
 export const PLAYLIST_QUEUE_KEY = '@player_playlist_queue';
 export const PLAYLIST_DEFAULT_QUEUE_KEY = '@player_playlist_default_queue';
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -101,7 +105,7 @@ export interface LibraryContextType {
   getPlaylistSongs: (playlistId: string) => Promise<SongData[]>;
   createPlaylist: (name: string, coverUrl?: string | null) => Promise<string | null>;
   renamePlaylist: (playlistId: string, name: string) => Promise<void>;
-  setPlaylistCover: (playlistId: string, coverUrl: string | null) => Promise<void>;
+  setPlaylistCover: (playlistId: string, coverUrl: string | null) => Promise<CoverChangeResult>;
   setPlaylistDownload: (playlistId: string, enabled: boolean) => Promise<void>;
   deletePlaylist: (playlistId: string) => Promise<void>;
   reorderPlaylists: (orderedIds: string[]) => Promise<void>;

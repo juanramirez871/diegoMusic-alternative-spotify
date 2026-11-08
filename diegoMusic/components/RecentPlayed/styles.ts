@@ -1,53 +1,47 @@
 import { Platform, StyleSheet } from 'react-native';
+import { colors } from '@/constants/theme';
+import { webTransition } from '@/utils/webStyles';
 
 const isWeb = Platform.OS === 'web';
+const TILE_HEIGHT = isWeb ? 64 : 56;
 
 export const styles = StyleSheet.create({
-  gridContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    gap: 10,
-  },
-  column: {
-    flex: 1,
+  grid: {
     gap: 8,
   },
-  containerItem: {
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tile: {
+    flex: 1,
+    height: TILE_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: isWeb ? '#1d1d1d' : '#3c3b3bff',
-    borderRadius: 8,
-    overflow: 'hidden',
-    height: 50,
-  },
-  skeletonItem: {
-    backgroundColor: '#2a2a2aff',
-    opacity: 0.5,
-  },
-  skeletonImage: {
-    width: 50,
-    height: 50,
-    backgroundColor: '#3c3b3bff',
-  },
-  skeletonText: {
-    height: 12,
-    backgroundColor: '#3c3b3bff',
     borderRadius: 4,
-    width: '80%',
+    overflow: 'hidden',
+    backgroundColor: colors.tile,
+    ...webTransition('background-color 200ms ease'),
+  },
+  tileActive: {
+    backgroundColor: colors.tileHover,
+  },
+  tileEmpty: {
+    opacity: 0.4,
   },
   image: {
-    width: 50,
-    height: 50,
-  },
-  textContainer: {
-    flex: 1,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
+    width: TILE_HEIGHT,
+    height: TILE_HEIGHT,
+    backgroundColor: colors.placeholder,
   },
   title: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    flex: 1,
+    paddingHorizontal: isWeb ? 12 : 8,
+    color: colors.text,
+    fontSize: isWeb ? 14 : 12,
+    fontWeight: '700',
+  },
+  playFab: {
+    marginRight: 8,
   },
 });

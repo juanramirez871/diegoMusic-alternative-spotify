@@ -51,9 +51,8 @@ export const usePreloader = () => {
             preloadedSoundsRef.current.set(song.id, player);
           }
           else if (isOnline) {
-            console.log(`[PRELOADED] Cargando player para ${song.id} desde URL directa`);
-            const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
-            const player = createAudioPlayer({ uri: directUrl });
+            console.log(`[PRELOADED] Cargando player para ${song.id} desde el backend`);
+            const player = createAudioPlayer({ uri: youtubeService.getAudioDownloadUrl(song.url) });
             preloadedSoundsRef.current.set(song.id, player);
           }
         }

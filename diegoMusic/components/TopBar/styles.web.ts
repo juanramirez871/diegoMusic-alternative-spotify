@@ -1,124 +1,157 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/constants/theme';
+import { webTransition } from '@/utils/webStyles';
 
 export const TOP_BAR_HEIGHT = 64;
+
+const CONTROL_SIZE = 48;
+/** Home button + search bar, matching Spotify's centred search group. */
+const CENTER_WIDTH = 546;
 
 export const styles = StyleSheet.create({
   bar: {
     height: TOP_BAR_HEIGHT,
-    backgroundColor: '#121212',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 8,
+    backgroundColor: colors.bar,
     zIndex: 100,
-    borderBottomLeftRadius: 15,
-    borderBottomRightRadius: 15,
-    marginBottom: 4,
   },
-  left: {
+  side: {
     flex: 1,
+    minWidth: 64,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  right: {
-    flex: 1,
-    alignItems: 'flex-end',
+  sideEnd: {
+    justifyContent: 'flex-end',
   },
   logo: {
-    width: 56,
-    height: 56,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  iconButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#2a2a2a',
+    marginHorizontal: 12,
+  },
+  center: {
+    flexBasis: CENTER_WIDTH,
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  circleButton: {
+    width: CONTROL_SIZE,
+    height: CONTROL_SIZE,
+    borderRadius: CONTROL_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.control,
+    ...webTransition('transform 150ms ease, background-color 150ms ease'),
+  },
+  circleButtonHovered: {
+    backgroundColor: colors.controlHover,
+    transform: [{ scale: 1.04 }],
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  searchBox: {
+    flex: 1,
+    height: CONTROL_SIZE,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    paddingRight: 4,
+    borderRadius: CONTROL_SIZE / 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: colors.control,
+    ...webTransition('background-color 150ms ease, border-color 150ms ease'),
+  },
+  searchBoxHovered: {
+    backgroundColor: colors.controlHover,
+    borderColor: colors.border,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    marginLeft: 10,
+    color: colors.textSubdued,
+    fontSize: 16,
+  },
+  searchDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.textSubdued,
+    opacity: 0.6,
+  },
+  browseButton: {
+    width: 44,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconButtonActive: {
-    backgroundColor: '#3a3a3a',
-  },
-  searchBox: {
-    width: '30%' as any,
-    maxWidth: 400,
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  searchBoxDisabled: {
+  disabled: {
     opacity: 0.5,
-  },
-  input: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 14,
-    // @ts-ignore web-only
-    outlineStyle: 'solid',
-    // @ts-ignore web-only
-    outlineWidth: 0,
   },
 });
 
 export const menuStyles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'flex-end',
-    justifyContent: 'flex-start',
-    paddingTop: 56,
-    paddingRight: 16,
+    paddingTop: TOP_BAR_HEIGHT,
+    paddingRight: 8,
   },
   menu: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
     width: 260,
-    overflow: 'hidden',
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: colors.popover,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
+    padding: 12,
   },
-  menuAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  userText: {
+    flex: 1,
   },
   userName: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   userEmail: {
-    color: '#888',
-    fontSize: 12,
     marginTop: 2,
+    color: colors.textSubdued,
+    fontSize: 12,
   },
   divider: {
     height: 1,
-    backgroundColor: '#2a2a2a',
+    marginVertical: 4,
+    backgroundColor: colors.border,
   },
-  logoutBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+  item: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 2,
   },
-  logoutBtnPressed: {
-    backgroundColor: '#2a2a2a',
+  itemHovered: {
+    backgroundColor: colors.popoverHover,
   },
-  logoutText: {
-    color: '#ff4444',
+  itemText: {
+    color: colors.text,
     fontSize: 14,
-    fontWeight: '500',
   },
 });

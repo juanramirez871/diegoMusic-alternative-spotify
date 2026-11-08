@@ -349,8 +349,7 @@ export const useAudioPlayer = (
           console.log(`[PSL] PRELOADED: play() llamado. seq=${currentSequence}`);
 
           if (!localUri && isOnline && Platform.OS !== 'web') {
-            const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
-            if (currentSequence !== playSequenceRef.current) return;
+            const directUrl = youtubeService.getAudioDownloadUrl(song.url);
             const targetUri = songIsWanted(song.id) ? persistentUri : cacheUri;
             console.log(`[DOWNLOAD] Iniciando descarga de fondo a: ${songIsWanted(song.id) ? "Playlist" : "Cache"}`);
             const downloadResumable = FileSystem.createDownloadResumable(directUrl, targetUri, {});
@@ -425,8 +424,7 @@ export const useAudioPlayer = (
             sound.play();
           }
           else if (isOnline) {
-            const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
-            sound = createAudioPlayer({ uri: directUrl });
+            sound = createAudioPlayer({ uri: youtubeService.getAudioDownloadUrl(song.url) });
             attachStatusListener(sound);
 
             sound.play();
@@ -461,8 +459,7 @@ export const useAudioPlayer = (
 
           if (!isOnline) throw new Error('Offline and local file is corrupt');
 
-          const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
-          if (currentSequence !== playSequenceRef.current) return;
+          const directUrl = youtubeService.getAudioDownloadUrl(song.url);
           sound = createAudioPlayer({ uri: directUrl });
           attachStatusListener(sound);
 
@@ -531,24 +528,9 @@ export const useAudioPlayer = (
       }
       else if (isOnline) {
 
-        console.log(`[PSL] seq=${currentSequence} → RAMA: NETWORK (API fetch) song.url=${song.url}`);
-        const { url: directUrl } = await youtubeService.getAudioDirectUrl(song.url);
-        console.log(`[PSL] NETWORK: API respondió OK. seq actual=${playSequenceRef.current} (esperado ${currentSequence}). directUrl slice=${directUrl?.slice(0,60)}`);
-        if (currentSequence !== playSequenceRef.current) {
-          console.log(`[PSL] NETWORK: seq mismatch tras API ${currentSequence} vs ${playSequenceRef.current}. ABORT.`);
-          return;
-        }
-
-        if (Platform.OS !== 'web') {
-          console.log(`[PSL] NETWORK: warming yt-dlp...`);
-          const warmedOk = await youtubeService.warmAudio(song.url);
-          console.log(`[PSL] NETWORK: warm result=${warmedOk}`);
-          if (currentSequence !== playSequenceRef.current) {
-            console.log(`[PSL] NETWORK: seq mismatch tras warm. ABORT.`);
-            return;
-          }
-        }
-
+        console.log(`[PSL] seq=${currentSequence} → RAMA: NETWORK song.url=${song.url}`);
+        // Streams straight away: the backend answers with byte ranges as soon as it can.
+        const directUrl = youtubeService.getAudioDownloadUrl(song.url);
         sound = createAudioPlayer({ uri: directUrl });
         attachStatusListener(sound);
 

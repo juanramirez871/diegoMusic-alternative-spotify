@@ -1,6 +1,5 @@
 import apiFetch from './api';
 import { API_URL } from './apiUrl';
-import { Platform } from 'react-native';
 
 const BASE_URL = API_URL;
 const searchCache = new Map<string, any[]>();
@@ -87,43 +86,17 @@ export const youtubeService = {
     return mappedData;
   },
 
+  /**
+   * URL every player streams and downloads a song from. It always goes through the
+   * backend, which serves byte ranges (iOS needs them) from its cache or by proxying
+   * YouTube, instead of a raw googlevideo URL that is tied to one IP and can expire.
+   */
   getAudioDownloadUrl: (url: string, startSeconds: number = 0) => {
     return `${BASE_URL}/youtube/audio/download?url=${encodeURIComponent(url)}&start=${startSeconds}`;
   },
 
-  getAudioDirectUrl: async (url: string): Promise<{ url: string; mimeType: string }> => {
-    if (Platform.OS === 'web') {
-      return { url: `${BASE_URL}/youtube/audio/download?url=${encodeURIComponent(url)}`, mimeType: 'audio/mp4' };
-    }
-
-    try {
-      const direct = await apiFetch<{ url: string; mimeType: string }>(`/youtube/audio/url?url=${encodeURIComponent(url)}`);
-      if (direct?.url) return direct;
-    }
-    catch (error) {
-      console.warn('[youtubeService] /audio/url failed, fallback to /audio/download', error);
-    }
-
-    return { url: `${BASE_URL}/youtube/audio/download?url=${encodeURIComponent(url)}`, mimeType: 'audio/mp4' };
-  },
-
   prefetchAudio: (url: string): void => {
     fetch(`${BASE_URL}/youtube/audio/prefetch?url=${encodeURIComponent(url)}`).catch(() => {});
-  },
-
-  warmAudio: async (url: string, timeoutMs: number = 25000): Promise<boolean> => {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(`${BASE_URL}/youtube/audio/warm?url=${encodeURIComponent(url)}`, { signal: controller.signal });
-      return res.ok;
-    }
-    catch {
-      return false;
-    }
-    finally {
-      clearTimeout(t);
-    }
   },
 
   getVideoStreamUrl: (url: string, quality: 'low' | 'medium' | 'high' = 'low') => {

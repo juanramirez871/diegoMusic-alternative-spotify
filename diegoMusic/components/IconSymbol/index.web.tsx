@@ -6,6 +6,9 @@ type IconEntry = { icon: Icons.LucideIcon; filled?: boolean };
 
 const ICONS: Record<string, IconEntry> = {
   'house.fill': { icon: Icons.Home, filled: true },
+  'house': { icon: Icons.Home },
+  'archivebox': { icon: Icons.Archive },
+  'books.vertical': { icon: Icons.Library },
   'heart.fill': { icon: Icons.Heart, filled: true },
   'heart': { icon: Icons.Heart },
   'heart-outline': { icon: Icons.Heart },

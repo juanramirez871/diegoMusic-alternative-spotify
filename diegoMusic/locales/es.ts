@@ -7,6 +7,10 @@ const es: Translations = {
     search: 'Buscar',
     settings: 'Ajustes',
   },
+  topBar: {
+    browse: 'Explorar',
+    logout: 'Cerrar sesión',
+  },
   library: {
     title: 'Playlists',
     createPlaylist: 'Crear playlist',
@@ -22,6 +26,7 @@ const es: Translations = {
     rename: 'Renombrar',
     cover: 'Cambiar portada',
     removeCover: 'Quitar portada',
+    coverRejected: 'No se pudo usar esa imagen como portada. Prueba con otra (JPG, PNG o WebP de menos de 5 MB).',
     delete: 'Eliminar playlist',
     deleteConfirm: '¿Eliminar "{name}"? Esta acción no se puede deshacer.',
     downloadToggle: 'Descargar canciones',
@@ -91,7 +96,12 @@ const es: Translations = {
     videoQualityHigh: 'Alta',
   },
   home: {
+    allTag: 'Todo',
     musicTag: 'Musica',
+    artistsTag: 'Artistas',
+    madeFor: 'Hecho para',
+    showAll: 'Mostrar todo',
+    showLess: 'Mostrar menos',
     mostPlayedTitle: 'Tu musica mas reproducida',
     noMostPlayed: 'Aun no tienes musica mas reproducida ( ˘︹˘ )',
     forYouTitle: 'Hecho para ti',
@@ -144,6 +154,7 @@ const es: Translations = {
   favoriteArtists: {
     title: 'Artistas favoritos',
     empty: 'Aun no tienes artistas favoritos (ㆆ_ㆆ)',
+    artistLabel: 'Artista',
   },
   songOptions: {
     untitled: 'Sin titulo',

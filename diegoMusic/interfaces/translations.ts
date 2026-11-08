@@ -7,6 +7,10 @@ export interface Translations {
     search: string;
     settings: string;
   };
+  topBar: {
+    browse: string;
+    logout: string;
+  };
   library: {
     title: string;
     createPlaylist: string;
@@ -22,6 +26,7 @@ export interface Translations {
     rename: string;
     cover: string;
     removeCover: string;
+    coverRejected: string;
     delete: string;
     deleteConfirm: string;
     downloadToggle: string;
@@ -91,7 +96,12 @@ export interface Translations {
     videoQualityHigh: string;
   };
   home: {
+    allTag: string;
     musicTag: string;
+    artistsTag: string;
+    madeFor: string;
+    showAll: string;
+    showLess: string;
     mostPlayedTitle: string;
     noMostPlayed: string;
     forYouTitle: string;
@@ -144,6 +154,7 @@ export interface Translations {
   favoriteArtists: {
     title: string;
     empty: string;
+    artistLabel: string;
   };
   songOptions: {
     untitled: string;

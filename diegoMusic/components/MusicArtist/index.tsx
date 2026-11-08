@@ -1,33 +1,23 @@
-import { View, Text, Image } from "react-native";
-import CarouselPlayer from "@/components/ListPlayer";
-import { MusicArtistProps } from "@/interfaces/artists";
-import { useLanguage } from "@/context/LanguageContext";
+import { SmartImage } from '@/components/SmartImage';
+import { SongShelf } from '@/components/SongShelf';
+import { DEFAULT_ARTIST_AVATAR } from '@/constants/images';
+import { useLanguage } from '@/context/LanguageContext';
+import { useArtistSongs } from '@/hooks/useArtistSongs';
+import type { MusicArtistProps } from '@/interfaces/artists';
 import { styles } from './styles';
 
-
+/** "For fans of <artist>" section with songs from the artist's channel. */
 export default function MusicArtist({ artist }: MusicArtistProps) {
-  
   const { t } = useLanguage();
-  return (
-    <View style={styles.container}>
-      <View style={styles.itemContainer}>
-        <View>
-            <Image
-                source={{
-                    uri: artist.avatar || "https://i.pinimg.com/736x/47/cb/be/47cbbee4df2bc1fccc63c3b0f9af46aa.jpg",
-                }}
-                style={styles.image}
-            />
-        </View>
-        <View>
-            <Text style={styles.title}>{t('musicArtist.forFansOf')}</Text>
-            <Text style={styles.author}>{artist.name}</Text>
-        </View>
-      </View>
+  const { songs, loading } = useArtistSongs(artist.id, `${artist.name} songs`);
 
-      <View>
-        <CarouselPlayer channelId={artist.id} query={`${artist.name} songs`} />
-      </View>
-    </View>
+  return (
+    <SongShelf
+      songs={songs}
+      loading={loading}
+      eyebrow={t('musicArtist.forFansOf')}
+      title={artist.name}
+      leading={<SmartImage uri={artist.avatar || DEFAULT_ARTIST_AVATAR} style={styles.avatar} />}
+    />
   );
 }

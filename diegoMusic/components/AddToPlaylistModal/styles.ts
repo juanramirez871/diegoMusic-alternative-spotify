@@ -1,37 +1,10 @@
-import { Dimensions, Platform, StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const isWeb = Platform.OS === 'web';
 
 export const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: isWeb ? 'center' : 'flex-end',
-    alignItems: isWeb ? 'center' : 'stretch',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
   content: {
-    backgroundColor: '#282828',
     maxHeight: SCREEN_HEIGHT * 0.75,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
-    ...(isWeb
-      ? { width: 460, maxWidth: '92%' as any, borderRadius: 16, alignSelf: 'center' }
-      : null),
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#555',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 16,
   },
   header: {
     flexDirection: 'row',

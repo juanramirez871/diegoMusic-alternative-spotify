@@ -1,42 +1,18 @@
 import { StyleSheet } from 'react-native';
 
-export const SHEET_HEIGHT_PCT = 0.8;
-
 export const styles = StyleSheet.create({
-  root: {
-    position: "fixed" as any,
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2000,
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  sheet: {
-    height: `${SHEET_HEIGHT_PCT * 100}%` as any,
-    backgroundColor: "#141414",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
+  panel: {
+    height: '80%',
+    padding: 0,
+    backgroundColor: '#141414',
   },
   headerGradient: {
-    paddingTop: 12,
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
   header: {
     alignItems: "center",
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    borderRadius: 2,
-    marginBottom: 20,
   },
   headerTop: {
     flexDirection: "row",

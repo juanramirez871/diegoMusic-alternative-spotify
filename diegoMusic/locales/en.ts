@@ -7,6 +7,10 @@ const en: Translations = {
     search: 'Search',
     settings: 'Settings',
   },
+  topBar: {
+    browse: 'Browse',
+    logout: 'Log out',
+  },
   library: {
     title: 'Playlists',
     createPlaylist: 'Create playlist',
@@ -22,6 +26,7 @@ const en: Translations = {
     rename: 'Rename',
     cover: 'Change cover',
     removeCover: 'Remove cover',
+    coverRejected: 'This image cannot be used as a cover. Try another one (JPG, PNG or WebP under 5 MB).',
     delete: 'Delete playlist',
     deleteConfirm: 'Delete "{name}"? This cannot be undone.',
     downloadToggle: 'Download songs',
@@ -91,7 +96,12 @@ const en: Translations = {
     videoQualityHigh: 'High',
   },
   home: {
+    allTag: 'All',
     musicTag: 'Music',
+    artistsTag: 'Artists',
+    madeFor: 'Made for',
+    showAll: 'Show all',
+    showLess: 'Show less',
     mostPlayedTitle: 'Your most played music',
     noMostPlayed: 'No most played music yet ( ˘︹˘ )',
     forYouTitle: 'Made for you',
@@ -144,6 +154,7 @@ const en: Translations = {
   favoriteArtists: {
     title: 'Favorite Artists',
     empty: 'No favorite artists yet (ㆆ_ㆆ)',
+    artistLabel: 'Artist',
   },
   songOptions: {
     untitled: 'Untitled',

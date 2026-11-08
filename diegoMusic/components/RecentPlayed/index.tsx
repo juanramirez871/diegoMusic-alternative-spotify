@@ -1,68 +1,61 @@
-import { View, Text, TouchableOpacity } from "react-native";
-import { usePlayer } from "@/context/PlayerContext";
-import { SongData } from "@/interfaces/Song";
-import { SmartImage } from "@/components/SmartImage";
+import { useState } from 'react';
+import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { PlayFab } from '@/components/PlayFab';
+import { SmartImage } from '@/components/SmartImage';
+import { useLibrary, usePlayback } from '@/context/PlayerContext';
+import type { SongData } from '@/interfaces/Song';
 import { styles } from './styles';
 
-export default function RecentPlayed() {
+const SLOT_COUNT = 8;
+/** Window width from which the web grid switches from 2 to 4 columns. */
+const WIDE_BREAKPOINT = 1200;
 
-  const { recentPlayed, playSong } = usePlayer();
-  const leftColumn = recentPlayed.slice(0, 4);
-  const rightColumn = recentPlayed.slice(4, 8);
-
-  const renderSkeleton = (key: string) => (
-    <View style={[styles.containerItem, styles.skeletonItem]} key={key}>
-      <View style={styles.skeletonImage} />
-      <View style={styles.textContainer}>
-        <View style={styles.skeletonText} />
-      </View>
-    </View>
-  );
-
-  const renderItem = (item: SongData) => {
-    return (
-      <TouchableOpacity
-        style={styles.containerItem}
-        key={item.id}
-        onPress={() => playSong(item, recentPlayed)}
-        activeOpacity={0.7}
-      >
-        <SmartImage
-          uri={item.thumbnail?.url}
-          style={styles.image}
-        />
-        <View style={styles.textContainer}>
-          <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
-            {item.title}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderColumn = (items: SongData[], startIndex: number) => {
-
-    const columnItems = [];
-    for (let i = 0; i < items.length; i++) {
-      columnItems.push(renderItem(items[i]));
-    }
-
-    for (let i = items.length; i < 4; i++) {
-      columnItems.push(renderSkeleton(`skeleton-${startIndex + i}`));
-    }
-
-    return columnItems;
-  };
+function RecentTile({ song, onPress }: { song: SongData; onPress: () => void }) {
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <View style={styles.gridContainer}>
-      <View style={styles.column}>
-        {renderColumn(leftColumn, 0)}
-      </View>
-      <View style={styles.column}>
-        {renderColumn(rightColumn, 4)}
-      </View>
-    </View>
+    <Pressable
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      accessibilityRole="button"
+      accessibilityLabel={song.title}
+      style={({ pressed }) => [styles.tile, (hovered || pressed) && styles.tileActive]}
+    >
+      <SmartImage uri={song.thumbnail?.url} style={styles.image} />
+      <Text style={styles.title} numberOfLines={2}>
+        {song.title}
+      </Text>
+      <PlayFab visible={hovered} size={32} style={styles.playFab} />
+    </Pressable>
   );
 }
 
+/** Grid of the last played songs; empty slots keep the grid shape stable. */
+export default function RecentPlayed() {
+  const { recentPlayed } = useLibrary();
+  const { playSong } = usePlayback();
+  const { width } = useWindowDimensions();
+  const columns = Platform.OS === 'web' && width >= WIDE_BREAKPOINT ? 4 : 2;
+
+  const slots = Array.from({ length: SLOT_COUNT }, (_, index) => recentPlayed[index] ?? null);
+  const rows = Array.from({ length: SLOT_COUNT / columns }, (_, row) =>
+    slots.slice(row * columns, (row + 1) * columns),
+  );
+
+  return (
+    <View style={styles.grid}>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={styles.row}>
+          {row.map((song, columnIndex) =>
+            song ? (
+              <RecentTile key={song.id} song={song} onPress={() => playSong(song, recentPlayed)} />
+            ) : (
+              <View key={`empty-${rowIndex}-${columnIndex}`} style={[styles.tile, styles.tileEmpty]} />
+            ),
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}

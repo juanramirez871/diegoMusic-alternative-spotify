@@ -15,6 +15,7 @@ import { parseDuration } from "@/context/player/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import type { StatsOverlayProps } from "@/interfaces/ui";
 import { styles } from "./styles";
+import { DEFAULT_ARTIST_AVATAR } from "@/constants/images";
 
 export const StatsOverlay: React.FC<StatsOverlayProps> = ({
   isVisible,
@@ -96,11 +97,7 @@ export const StatsOverlay: React.FC<StatsOverlayProps> = ({
             <Text style={styles.sectionTitle}>{t("stats.topArtists")}</Text>
             <View style={styles.artistsRow}>
               {topArtists.map((artist, i) => {
-                const thumb = artist.avatar
-                  ? { uri: artist.avatar }
-                  : {
-                      uri: "https://i.pinimg.com/736x/47/cb/be/47cbbee4df2bc1fccc63c3b0f9af46aa.jpg",
-                    };
+                const thumb = { uri: artist.avatar || DEFAULT_ARTIST_AVATAR };
                 return (
                   <View key={artist.name} style={styles.artistItem}>
                     {i === 0 && (

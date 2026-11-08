@@ -3,6 +3,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/services/apiUrl';
+import { authEvents } from '@/services/authEvents';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -100,6 +101,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       AsyncStorage.removeItem(TOKEN_STORAGE_KEY),
     ]);
   }, []);
+
+  // An expired or revoked token makes every API call fail silently: sign out so the
+  // user logs in again. Local data is kept and synced once they are back.
+  useEffect(() => authEvents.onSessionExpired(() => {
+    logout();
+  }), [logout]);
 
   return (
     <AuthContext.Provider value={{ isLoggedIn: !!user, user, token, loading, login, logout }}>

@@ -19,6 +19,7 @@ import CreatePlaylistModal from '@/components/CreatePlaylistModal';
 import { usePlayer } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { styles } from "@/styles/PlaylistsScreen.styles";
+import { sortPlaylists } from "@/utils/playlists";
 
 const WEB_MAX_WIDTH = 1280;
 const WEB_H_PADDING = 32;
@@ -39,13 +40,7 @@ export default function PlaylistsScreen() {
     router.push(`/playlists/${id}` as any);
   };
 
-  const sorted = useMemo(
-    () => [...playlists].sort((a, b) => {
-      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
-      return b.position - a.position;
-    }),
-    [playlists],
-  );
+  const sorted = useMemo(() => sortPlaylists(playlists), [playlists]);
 
   const defaultPlaylist = sorted.find((p) => p.isDefault) ?? null;
   const rest = useMemo(() => sorted.filter((p) => !p.isDefault), [sorted]);

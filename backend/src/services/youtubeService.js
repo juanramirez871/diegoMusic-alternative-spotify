@@ -13,7 +13,7 @@ import {
   isShortChannelItem
 } from "../utils/youtubeUtils.js";
 import { getInnertube } from "../utils/innertube.js";
-import { existsSync, statSync, unlinkSync, mkdirSync, readdirSync, renameSync, utimesSync } from "fs";
+import { createReadStream, existsSync, statSync, unlinkSync, mkdirSync, readdirSync, renameSync, utimesSync } from "fs";
 import ffmpegPath from "ffmpeg-static";
 
 const ipv4Agent = new https.Agent({ family: 4 });
@@ -249,10 +249,26 @@ const getGoogleVideoHeaders = async (extraHeaders = {}) => {
   };
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A freshly issued googlevideo URL answers 403 for a few seconds before it starts
+// serving, so a 403 is retried before the URL is considered broken.
+const GOOGLEVIDEO_WARMUP_RETRIES = 4;
+const GOOGLEVIDEO_WARMUP_DELAY_MS = 1000;
+
+const fetchGoogleVideo = async (directUrl, extraHeaders = {}) => {
+  const headers = await getGoogleVideoHeaders(extraHeaders);
+  for (let attempt = 0; ; attempt++) {
+    const resp = await fetch(directUrl, { headers, agent: ipv4Agent });
+    if (resp.status !== 403 || attempt >= GOOGLEVIDEO_WARMUP_RETRIES) return resp;
+    resp.body?.resume?.();
+    await sleep(GOOGLEVIDEO_WARMUP_DELAY_MS);
+  }
+};
+
 const validateDirectUrl = async (directUrl) => {
   try {
-    const headers = await getGoogleVideoHeaders({ "Range": "bytes=0-1" });
-    const resp = await fetch(directUrl, { headers, agent: ipv4Agent });
+    const resp = await fetchGoogleVideo(directUrl, { "Range": "bytes=0-1" });
     if (resp.status !== 200 && resp.status !== 206) return false;
     await resp.arrayBuffer();
     return true;
@@ -292,6 +308,14 @@ const getAudioUrlViaInnertube = async (videoId) => {
   throw new Error("Innertube: ningún cliente produjo URL válida");
 };
 
+const FAST_YTDLP_CLIENTS = ["mweb"];
+const resolveViaYtdlp = async (videoUrl, playerClient) => {
+  const directUrl = await runYtdlpGetUrl(videoUrl, playerClient, { useCookies: false });
+  if (!(await validateDirectUrl(directUrl))) throw new Error(`URL de ${playerClient} no válida`);
+  console.log(`[getAudioDirectUrl] Ganó yt-dlp ${playerClient}: ${extractVideoId(videoUrl)}`);
+  return { url: directUrl, mimeType: "audio/mp4", validated: true };
+};
+
 export const getAudioDirectUrl = async (url) => {
   const videoId = extractVideoId(url);
   const cacheKey = `audio:${videoId}`;
@@ -310,31 +334,18 @@ export const getAudioDirectUrl = async (url) => {
       console.log(`[getAudioDirectUrl] Ganó Innertube: ${videoId}`);
       return { ...r, validated: true };
     }),
-    (async () => {
-      const directUrl = await runYtdlpGetUrl(videoUrl, "android_vr", { useCookies: false });
-      if (!(await validateDirectUrl(directUrl))) throw new Error("URL de android_vr no válida");
-      console.log(`[getAudioDirectUrl] Ganó yt-dlp android_vr: ${videoId}`);
-      return { url: directUrl, mimeType: "audio/mp4", validated: true };
-    })(),
+    ...FAST_YTDLP_CLIENTS.map((client) => resolveViaYtdlp(videoUrl, client)),
   ];
 
   try {
     result = await Promise.any(attempts);
   }
   catch {
-    console.warn(`[getAudioDirectUrl] Innertube y android_vr fallaron, último recurso android,web: ${videoId}`);
-    try {
-      const directUrl = await runYtdlpGetUrl(videoUrl, "android,web");
-      const validated = await validateDirectUrl(directUrl);
-      if (!validated) throw new Error("URL de android,web no válida");
-      result = { url: directUrl, mimeType: 'audio/mp4', validated };
-    }
-    catch {
-      console.warn(`[getAudioDirectUrl] android,web falló, último recurso sin player_client fijo: ${videoId}`);
-      const directUrl = await runYtdlpGetUrl(videoUrl, null);
-      const validated = await validateDirectUrl(directUrl);
-      result = { url: directUrl, mimeType: 'audio/mp4', validated };
-    }
+    // yt-dlp's default clients with cookies: slower, but the one that still works reliably.
+    console.warn(`[getAudioDirectUrl] Innertube y ${FAST_YTDLP_CLIENTS.join(',')} fallaron, último recurso yt-dlp con cookies: ${videoId}`);
+    const directUrl = await runYtdlpGetUrl(videoUrl, null);
+    const validated = await validateDirectUrl(directUrl);
+    result = { url: directUrl, mimeType: 'audio/mp4', validated };
   }
 
   urlCache.set(cacheKey, { data: result, timestamp: Date.now() });
@@ -433,8 +444,7 @@ const streamAudioFromOffset = (url, res, startSeconds) => {
 };
 
 const proxyDirectAudio = async (res, directUrl, mimeType, rangeHeader) => {
-  const headers = await getGoogleVideoHeaders(rangeHeader ? { "Range": rangeHeader } : {});
-  const upstream = await fetch(directUrl, { headers, agent: ipv4Agent });
+  const upstream = await fetchGoogleVideo(directUrl, rangeHeader ? { "Range": rangeHeader } : {});
   if (!upstream.ok || !upstream.body) {
     throw new Error(`upstream respondió ${upstream.status}`);
   }
@@ -462,6 +472,46 @@ const proxyDirectAudio = async (res, directUrl, mimeType, rangeHeader) => {
   upstream.body.pipe(res);
 };
 
+/** Parses a single `bytes=a-b`, `bytes=a-` or `bytes=-n` range against a file size. */
+const parseByteRange = (rangeHeader, size) => {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader?.trim() ?? "");
+  if (!match || (!match[1] && !match[2])) return null;
+
+  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+  const end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+  if (start >= size || start > end) return { unsatisfiable: true };
+  return { start, end };
+};
+
+/**
+ * Sends a cached audio file honouring HTTP Range requests. Players such as iOS's
+ * AVPlayer won't start progressive audio from a server without byte-range support.
+ */
+export const serveAudioFile = (res, filePath, rangeHeader) => {
+  const size = statSync(filePath).size;
+  const range = parseByteRange(rangeHeader, size);
+
+  if (range?.unsatisfiable) {
+    res.writeHead(416, { "Content-Range": `bytes */${size}` });
+    res.end();
+    return;
+  }
+
+  const headers = { "Content-Type": "audio/mp4", "Accept-Ranges": "bytes" };
+  if (!range) {
+    res.writeHead(200, { ...headers, "Content-Length": size });
+    createReadStream(filePath).pipe(res);
+    return;
+  }
+
+  res.writeHead(206, {
+    ...headers,
+    "Content-Range": `bytes ${range.start}-${range.end}/${size}`,
+    "Content-Length": range.end - range.start + 1,
+  });
+  createReadStream(filePath, { start: range.start, end: range.end }).pipe(res);
+};
+
 export const streamAudioToResponse = async (url, res, startSeconds = 0, rangeHeader) => {
   if (startSeconds > 0) {
     streamAudioFromOffset(url, res, startSeconds);
@@ -469,72 +519,28 @@ export const streamAudioToResponse = async (url, res, startSeconds = 0, rangeHea
   }
 
   try {
-    const { url: directUrl, mimeType, validated } = await getAudioDirectUrl(url);
-    if (validated) {
-      await proxyDirectAudio(res, directUrl, mimeType, rangeHeader);
-      return;
-    }
-    console.warn(`[streamAudioToResponse] URL no validada, usando pipe yt-dlp directamente`);
-  } catch (error) {
+    // Proxy even URLs that failed validation: it often was a false negative, and the
+    // proxy keeps byte-range support, which iOS needs.
+    const { url: directUrl, mimeType } = await getAudioDirectUrl(url);
+    await proxyDirectAudio(res, directUrl, mimeType, rangeHeader);
+    return;
+  }
+  catch (error) {
     urlCache.delete(`audio:${extractVideoId(url)}`);
-    console.warn(`[streamAudioToResponse] Proxy directo falló (${error.message}), fallback a pipe yt-dlp`);
+    console.warn(`[streamAudioToResponse] Proxy directo falló (${error.message}), esperando la descarga completa`);
     if (res.headersSent) { try { res.end(); } catch {} return; }
   }
 
-  const videoId = extractVideoId(url);
-  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const args = [
-    ...getYtdlpAudioArgs(),
-    videoUrl,
-    "-f", "ba[ext=m4a]/ba/best",
-    "-o", "-",
-  ];
-
-  const proc = spawn("yt-dlp", args, {
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PATH: process.env.PATH }
-  });
-
-  proc.stderr.on("data", (d) => console.log("[yt-dlp:stream]", d.toString().trim()));
-
-  let headersSent = false;
-  let firstChunk = true;
-
-  proc.stdout.on("data", (chunk) => {
-    if (firstChunk) {
-      firstChunk = false;
-      if (!res.headersSent) {
-        res.writeHead(200, {
-          "Content-Type": "audio/mp4",
-          "Transfer-Encoding": "chunked",
-        });
-        headersSent = true;
-      }
-    }
-    if (!res.write(chunk)) proc.stdout.pause();
-  });
-
-  res.on("drain", () => proc.stdout.resume());
-
-  proc.on("close", (code) => {
-    if (code !== 0 && !headersSent && !res.headersSent) {
-      res.status(500).json({ error: `yt-dlp exited with code ${code}` });
-      return;
-    }
-    try { res.end(); } catch {}
-  });
-
-  proc.on("error", (err) => {
-    console.error("[yt-dlp:stream] error:", err);
-    if (!headersSent && !res.headersSent) {
-      res.status(500).json({ error: err.message });
-    }
-    else { try { res.end(); } catch {} }
-  });
-
-  res.on("close", () => {
-    try { proc.kill(); } catch {}
-  });
+  // Last resort: wait for the whole file and serve it with ranges. A chunked pipe
+  // without ranges would play in browsers but never start on iOS.
+  try {
+    const filePath = await downloadAudio(url, 0);
+    if (!res.writableEnded && !res.destroyed) serveAudioFile(res, filePath, rangeHeader);
+  }
+  catch (error) {
+    console.error(`[streamAudioToResponse] La descarga también falló: ${error.message}`);
+    if (!res.headersSent) res.status(502).json({ error: "No se pudo obtener el audio" });
+  }
 };
 
 const AUDIO_DOWNLOAD_CLIENT_FALLBACKS = ["web", null];

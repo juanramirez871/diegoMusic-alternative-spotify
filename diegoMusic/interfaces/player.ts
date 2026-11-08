@@ -1,5 +1,6 @@
 import { ViewStyle } from "react-native";
 import { SongData } from "./Song";
+import type { ShelfProps } from "./ui";
 import { VideoPlayer } from 'expo-video';
 
 
@@ -45,10 +46,10 @@ export interface QueueModalProps {
   onClose: () => void;
 }
 
-export interface CarouselPlayerProps {
-  channelId?: string;
-  query?: string;
-  data?: SongData[];
+export interface SongShelfProps extends Omit<ShelfProps, 'children' | 'expandable'> {
+  songs: SongData[];
+  /** Shows skeleton cards while the songs are being fetched. */
+  loading?: boolean;
 }
 
 export interface MaximazedPlayerProps {

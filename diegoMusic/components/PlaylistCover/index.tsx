@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Image, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { IconSymbol } from '@/components/IconSymbol';
 import { SmartImage } from '@/components/SmartImage';
@@ -22,15 +22,24 @@ export const PlaylistCover: React.FC<Props> = ({
 }) => {
   
   const { coverUrl: resolvedCover, thumbs } = usePlaylistCover(coverUrl, previewThumbnails);
+  // When the custom cover can't be loaded, fall back to the songs' mosaic rather
+  // than the generic placeholder image.
+  const [coverFailed, setCoverFailed] = useState(false);
+  useEffect(() => setCoverFailed(false), [resolvedCover]);
+
   const box: StyleProp<ViewStyle> = [
     { width: size, height: size, borderRadius, overflow: 'hidden' },
     style,
   ];
 
-  if (resolvedCover) {
+  if (resolvedCover && !coverFailed) {
     return (
       <View style={box}>
-        <SmartImage uri={resolvedCover} style={{ width: size, height: size }} />
+        <SmartImage
+          uri={resolvedCover}
+          style={{ width: size, height: size }}
+          onError={() => setCoverFailed(true)}
+        />
       </View>
     );
   }

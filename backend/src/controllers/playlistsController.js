@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import { Artist, Song, Playlist, PlaylistSong, PlaylistFollow, User, sequelize } from '../models/index.js';
 import { upsertSong, songToClient } from '../services/songUpsert.js';
-import { deleteCoverFile, coverUrlFor } from '../services/coverUpload.js';
+import { deleteCoverFile, coverUrlFor, sanitizeCoverUrl } from '../services/coverUpload.js';
 
 const SONG_INCLUDE = {
   model: Song,
@@ -181,7 +181,7 @@ export async function createPlaylist(req, res) {
     const playlist = await Playlist.create({
       userId,
       name: name.trim(),
-      coverUrl: coverUrl ?? null,
+      coverUrl: sanitizeCoverUrl(coverUrl),
       isDefault: false,
       downloadEnabled: false,
       position: Number.isFinite(max) ? max + 1 : 1,
@@ -211,7 +211,13 @@ export async function updatePlaylist(req, res) {
       if (!name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
       patch.name = name.trim();
     }
-    if (coverUrl !== undefined) patch.coverUrl = coverUrl || null;
+    if (coverUrl !== undefined) {
+      // Uploads go through POST /:id/cover. Here a cover can only be cleared or set
+      // to a remote image; device-local URIs are ignored instead of being stored.
+      const sanitized = sanitizeCoverUrl(coverUrl);
+      if (!coverUrl) patch.coverUrl = null;
+      else if (sanitized) patch.coverUrl = sanitized;
+    }
     if (downloadEnabled !== undefined) patch.downloadEnabled = !!downloadEnabled;
     if (position !== undefined && Number.isFinite(position)) patch.position = position;
 
@@ -232,7 +238,11 @@ export async function updatePlaylist(req, res) {
       }
     }
 
+    const previousCover = playlist.coverUrl;
     if (Object.keys(patch).length > 0) await playlist.update(patch);
+    if ('coverUrl' in patch && previousCover !== patch.coverUrl && previousCover?.startsWith('/uploads/')) {
+      deleteCoverFile(previousCover);
+    }
     res.json(await serializePlaylistMeta(playlist, req));
   }
   catch (err) {

@@ -1,21 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import storage from '@/services/storage';
+import { storage } from '@/services/storage';
+import { authEvents } from '@/services/authEvents';
 import { playlistsService } from '@/services/playlistsService';
 import { pendingPlaylistOps } from '@/services/pendingPlaylistOps';
 import { useAuth } from '@/context/AuthContext';
 import { useNetwork } from '@/context/NetworkContext';
 import type { SongData } from '@/interfaces/Song';
 import type {
+  CoverChangeResult,
   PlaylistMeta,
   PlaylistApiMeta,
   PendingPlaylistOp,
 } from '@/interfaces/Playlist';
+import { persistPickedCover, releasePickedCover } from '@/utils/coverImage';
+import { isLocalImageUri, resolveCoverUrl } from '@/utils/playlistCover';
 import {
   FAVORITES_KEY,
   PLAYLISTS_KEY,
   PLAYLIST_SONGS_PREFIX,
   PLAYLIST_ID_MAP_KEY,
   PLAYLIST_MIGRATION_DONE_KEY,
+  PLAYLISTS_NEEDS_RESYNC_KEY,
+  PLAYLISTS_OWNER_KEY,
 } from './types';
 
 const DEFAULT_NAME = 'Favoritos';
@@ -24,6 +30,16 @@ const uuid = () =>
   'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
 
 const songsKey = (id: string) => `${PLAYLIST_SONGS_PREFIX}${id}`;
+
+const readStoredSongs = async (id: string): Promise<SongData[]> => {
+  try {
+    const raw = await storage.getItem(songsKey(id));
+    return raw ? (JSON.parse(raw) as SongData[]) : [];
+  }
+  catch {
+    return [];
+  }
+};
 
 const previewFrom = (songs: SongData[]) =>
   songs.map((s) => s.thumbnail?.url).filter(Boolean).slice(0, 4) as string[];
@@ -49,7 +65,7 @@ const metaFromApi = (p: PlaylistApiMeta): PlaylistMeta => ({
   id: String(p.id),
   serverId: p.id,
   name: p.name,
-  coverUrl: p.coverUrl,
+  coverUrl: resolveCoverUrl(p.coverUrl),
   isDefault: p.isDefault,
   downloadEnabled: p.downloadEnabled,
   position: p.position,
@@ -83,8 +99,8 @@ const sessionSnapshot: SessionSnapshot =
   });
 
 export const usePlaylists = () => {
-  const { token } = useAuth();
-  const { isOnline } = useNetwork();
+  const { token, user } = useAuth();
+  const { isOnline, isApiReachable } = useNetwork();
 
   const [playlists, setPlaylists] = useState<PlaylistMeta[]>(
     () => sessionSnapshot.playlists ?? [],
@@ -105,6 +121,8 @@ export const usePlaylists = () => {
   playlistsRef.current = playlists;
   const songsCacheRef = useRef<Record<string, SongData[]>>({});
   songsCacheRef.current = songsCache;
+  /** Local ids whose create request is in flight, so the sync doesn't queue them twice. */
+  const creatingRef = useRef(new Set<string>());
 
   const persistMeta = useCallback(async (list: PlaylistMeta[]) => {
     sessionSnapshot.playlists = list;
@@ -149,6 +167,14 @@ export const usePlaylists = () => {
       return next;
     });
   }, [persistMeta, persistSongs]);
+
+  const patchLocalPlaylist = useCallback((playlistId: string, patch: Partial<PlaylistMeta>) => {
+    setPlaylists((list) => {
+      const next = list.map((p) => (p.id === playlistId ? { ...p, ...patch } : p));
+      persistMeta(next);
+      return next;
+    });
+  }, [persistMeta]);
 
   const serverIdOf = useCallback((id: string): number | undefined => {
     const p = playlistsRef.current.find((x) => x.id === id);
@@ -280,124 +306,166 @@ export const usePlaylists = () => {
     prevTokenRef.current = token;
   }, [token]);
 
-  const reconcilingRef = useRef(false);
-  useEffect(() => {
-    if (!hydrated || !token || !isOnline) return;
-    if (reconcilingRef.current) return;
-    reconcilingRef.current = true;
+  // Changes made while the token was being rejected never reached the server.
+  useEffect(() => authEvents.onSessionExpired(() => {
+    storage.setItem(PLAYLISTS_NEEDS_RESYNC_KEY, '1').catch(() => {});
+  }), []);
 
-    const run = async () => {
-      try {
-        await drainPendingOps();
-        await pullFromServer();
-      }
-      catch (err) {
-        console.warn('[Playlists] reconcile error:', err);
-      }
-      finally {
-        reconcilingRef.current = false;
-      }
-    };
-    run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, token, isOnline]);
+  /** Adds to the server every local song of a playlist it doesn't have yet (adds are idempotent). */
+  const pushLocalSongs = useCallback(async (playlistId: string, serverId: number): Promise<boolean> => {
+    const local = songsCacheRef.current[playlistId] ?? (await readStoredSongs(playlistId));
+    if (local.length === 0) return true;
+    const remote = await playlistsService.fetchOne(serverId);
+    if (!remote) return false;
 
-  const drainPendingOps = useCallback(async () => {
+    const onServer = new Set(remote.songs.map((song) => song.id));
+    for (const song of local) {
+      if (!onServer.has(song.id) && !(await playlistsService.addSong(serverId, song))) return false;
+    }
+    return true;
+  }, []);
+
+  /** Re-queues the creation of local playlists the server never received. */
+  const queueMissingCreates = useCallback(async () => {
     const ops = await pendingPlaylistOps.all();
-    if (ops.length === 0) return;
+    const queued = new Set(ops.flatMap((op) => (op.type === 'create' ? [op.localId] : [])));
+    const missing = playlistsRef.current.filter((p) =>
+      p.kind === 'owned' &&
+      !p.isDefault &&
+      serverIdOf(p.id) == null &&
+      !queued.has(p.id) &&
+      !creatingRef.current.has(p.id),
+    );
+    for (const p of missing) {
+      await pendingPlaylistOps.enqueue({ type: 'create', localId: p.id, name: p.name, ts: Date.now() });
+    }
+  }, [serverIdOf]);
 
-    const remaining: PendingPlaylistOp[] = [];
+  const applyQueuedCover = useCallback(async (playlistId: string, serverId: number, localUri: string) => {
+    const result = await playlistsService.uploadCover(serverId, localUri);
+    if (result.status === 'retry') return false;
 
-    for (let i = 0; i < ops.length; i++) {
-      const op = ops[i];
-      try {
-        if (op.type === 'create')
-        {
-          const created = await playlistsService.create(op.name, op.coverUrl);
-          if (created) {
-            idMapRef.current[op.localId] = created.id;
-            idMapRef.current[String(created.id)] = created.id;
-            await persistIdMap();
-            setPlaylists((list) => {
-              const next = list.map((p) =>
-                p.id === op.localId ? { ...p, serverId: created.id } : p,
-              );
-              persistMeta(next);
-              return next;
-            });
-          }
-          else {
-            remaining.push(op);
-          }
-        }
-        else {
-          const sid = serverIdOf(op.type === 'reorder' ? '' : (op as any).localId)
-            ?? idMapRef.current[(op as any).localId];
-          if (op.type === 'reorder') {
-            const serverIds = op.order
-              .map((id) => serverIdOf(id) ?? idMapRef.current[id])
-              .filter((n): n is number => Number.isFinite(n));
-            if (serverIds.length > 0) await playlistsService.reorder(serverIds);
-          }
-          else if (!sid) {
-            remaining.push(op);
-          }
-          else if (op.type === 'update') {
-            await playlistsService.update(sid, op.patch);
-          }
-          else if (op.type === 'delete') {
-            await playlistsService.remove(sid);
-          }
-          else if (op.type === 'addSong') {
-            await playlistsService.addSong(sid, op.song);
-          }
-          else if (op.type === 'removeSong') {
-            await playlistsService.removeSong(sid, op.songId);
-          }
-          else if (op.type === 'reorderSongs') {
-            await playlistsService.reorderSongs(sid, op.order);
-          }
-          else if (op.type === 'uploadCover') {
-            const remoteUrl = await playlistsService.uploadCover(sid, op.localUri);
-            if (remoteUrl) {
-              setPlaylists((list) => {
-                const next = list.map((p) =>
-                  p.id === op.localId ? { ...p, coverUrl: remoteUrl } : p,
-                );
-                persistMeta(next);
-                return next;
-              });
-            }
-            else {
-              remaining.push(op);
-            }
-          }
-        }
-      }
-      catch (err) {
-        console.warn('[Playlists] drain op failed, keeping:', op.type, err);
-        remaining.push(op);
-      }
+    // Leave it alone if the user picked another cover meanwhile.
+    if (playlistsRef.current.find((p) => p.id === playlistId)?.coverUrl === localUri) {
+      patchLocalPlaylist(playlistId, { coverUrl: result.status === 'uploaded' ? result.coverUrl : null });
+    }
+    releasePickedCover(localUri);
+    return true;
+  }, [patchLocalPlaylist]);
+
+  /** Applies one queued op. Resolves true once it is settled and can leave the queue. */
+  const applyPendingOp = useCallback(async (op: PendingPlaylistOp, queue: PendingPlaylistOp[]): Promise<boolean> => {
+    if (op.type === 'create') {
+      const created = await playlistsService.create(op.name, op.coverUrl);
+      if (!created) return false;
+      idMapRef.current[op.localId] = created.id;
+      idMapRef.current[String(created.id)] = created.id;
+      await persistIdMap();
+      patchLocalPlaylist(op.localId, { serverId: created.id });
+      await pushLocalSongs(op.localId, created.id);
+      return true;
     }
 
-    await pendingPlaylistOps.set(remaining);
-  }, [persistIdMap, persistMeta, serverIdOf]);
+    if (op.type === 'reorder') {
+      const serverIds = op.order
+        .map((id) => serverIdOf(id))
+        .filter((n): n is number => Number.isFinite(n));
+      return serverIds.length === 0 || playlistsService.reorder(serverIds);
+    }
+
+    const sid = serverIdOf(op.localId);
+    if (sid == null) {
+      // Wait for its playlist to be created, unless that playlist is gone for good.
+      const awaitingCreate = queue.some((o) => o.type === 'create' && o.localId === op.localId);
+      return !awaitingCreate && !playlistsRef.current.some((p) => p.id === op.localId);
+    }
+
+    switch (op.type) {
+      case 'update': return playlistsService.update(sid, op.patch);
+      case 'delete': return playlistsService.remove(sid);
+      case 'addSong': return playlistsService.addSong(sid, op.song);
+      case 'removeSong': return playlistsService.removeSong(sid, op.songId);
+      case 'reorderSongs': return playlistsService.reorderSongs(sid, op.order);
+      case 'uploadCover': return applyQueuedCover(op.localId, sid, op.localUri);
+    }
+  }, [applyQueuedCover, patchLocalPlaylist, persistIdMap, pushLocalSongs, serverIdOf]);
+
+  const drainPendingOps = useCallback(async () => {
+    await queueMissingCreates();
+    const ops = await pendingPlaylistOps.all();
+    const settled: PendingPlaylistOp[] = [];
+
+    for (const op of ops) {
+      try {
+        if (await applyPendingOp(op, ops)) settled.push(op);
+      }
+      catch (err) {
+        console.warn('[Playlists] pending op failed, keeping it:', op.type, err);
+      }
+    }
+    await pendingPlaylistOps.remove(settled);
+  }, [applyPendingOp, queueMissingCreates]);
+
+  /** After a session expiry, pushes songs that only reached this device. */
+  const pushUnsyncedSongs = useCallback(async () => {
+    if ((await storage.getItem(PLAYLISTS_NEEDS_RESYNC_KEY)) !== '1') return;
+    for (const playlist of playlistsRef.current) {
+      const sid = serverIdOf(playlist.id);
+      if (playlist.kind !== 'owned' || sid == null) continue;
+      if (!(await pushLocalSongs(playlist.id, sid))) return; // keep the flag and retry later
+    }
+    await storage.removeItem(PLAYLISTS_NEEDS_RESYNC_KEY);
+  }, [pushLocalSongs, serverIdOf]);
+
+  /**
+   * The local library isn't scoped per account: when a different account signs in on
+   * this device, drop the previous one's local data so none of it syncs into the new one.
+   */
+  const ensureLibraryOwner = useCallback(async () => {
+    if (!user) return;
+    const userId = String(user.id);
+    const owner = await storage.getItem(PLAYLISTS_OWNER_KEY);
+    if (owner && owner !== userId) {
+      idMapRef.current = {};
+      playlistsRef.current = [];
+      setPlaylists([]);
+      await Promise.all([persistIdMap(), persistMeta([]), pendingPlaylistOps.clear()]);
+    }
+    if (owner !== userId) await storage.setItem(PLAYLISTS_OWNER_KEY, userId);
+  }, [persistIdMap, persistMeta, user]);
 
   const pullFromServer = useCallback(async () => {
     const apiList = await playlistsService.fetchAll();
     if (!apiList) return;
 
     const local = playlistsRef.current;
+    const localById = new Map(local.map((p) => [p.id, p]));
     const localDefault = local.find((p) => p.isDefault);
 
-    let merged: PlaylistMeta[] = apiList.map((p) => {
-      const m = metaFromApi(p);
-      if (m.isDefault && localDefault && localDefault.serverId == null) {
-        idMapRef.current[localDefault.id] = p.id;
-        return { ...m, id: localDefault.id };
+    // Keep the ids this device already uses, so open screens, cached songs and
+    // queued ops keep pointing at the same playlist.
+    const localIdByServerId = new Map<number, string>();
+    for (const p of local) {
+      const sid = p.serverId ?? idMapRef.current[p.id];
+      if (sid != null) localIdByServerId.set(sid, p.id);
+    }
+
+    const fromServer = apiList.map((api) => {
+      const meta = metaFromApi(api);
+      if (meta.isDefault && localDefault && localDefault.serverId == null) {
+        idMapRef.current[localDefault.id] = api.id;
+        localIdByServerId.set(api.id, localDefault.id);
       }
-      return m;
+      const id = localIdByServerId.get(api.id) ?? meta.id;
+      // A cover still waiting to be uploaded wins over the server's previous one.
+      const localCover = localById.get(id)?.coverUrl;
+      const coverUrl = localCover && isLocalImageUri(localCover) ? localCover : meta.coverUrl;
+      return { ...meta, id, coverUrl };
     });
+
+    // Playlists created here that the server doesn't know yet stay until their create syncs.
+    const unsynced = local.filter((p) => p.kind === 'owned' && serverIdOf(p.id) == null);
+    let merged = [...fromServer, ...unsynced];
 
     const localIds = local.map((p) => p.id).sort().join(',');
     const mergedIds = merged.map((p) => p.id).sort().join(',');
@@ -415,7 +483,31 @@ export const usePlaylists = () => {
       if (detail) setLocalSongs(def.id, detail.songs);
     }
     bump();
-  }, [persistIdMap, persistMeta, setLocalSongs]);
+  }, [persistIdMap, persistMeta, serverIdOf, setLocalSongs]);
+
+  const reconcilingRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || !token || !isOnline || !isApiReachable) return;
+    if (reconcilingRef.current) return;
+    reconcilingRef.current = true;
+
+    const run = async () => {
+      try {
+        await ensureLibraryOwner();
+        await drainPendingOps();
+        await pushUnsyncedSongs();
+        await pullFromServer();
+      }
+      catch (err) {
+        console.warn('[Playlists] reconcile error:', err);
+      }
+      finally {
+        reconcilingRef.current = false;
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, token, isOnline, isApiReachable]);
 
   const isFollowed = useCallback(
     (playlistId: string) => playlistsRef.current.find((p) => p.id === playlistId)?.kind === 'followed',
@@ -470,21 +562,28 @@ export const usePlaylists = () => {
     setSongsCache((c) => ({ ...c, [localId]: [] }));
 
     if (token && isOnline) {
-      const created = await playlistsService.create(trimmed, coverUrl);
-      if (created) {
-        idMapRef.current[localId] = created.id;
-        await persistIdMap();
-        setPlaylists((list) => {
-          const withServer = list.map((p) => (p.id === localId ? { ...p, serverId: created.id } : p));
-          persistMeta(withServer);
-          return withServer;
-        });
-        return localId;
+      creatingRef.current.add(localId);
+      try {
+        const created = await playlistsService.create(trimmed, coverUrl);
+        if (created) {
+          // Deleted while the request was in flight: don't leave it behind on the server.
+          if (!playlistsRef.current.some((p) => p.id === localId)) {
+            await playlistsService.remove(created.id);
+            return null;
+          }
+          idMapRef.current[localId] = created.id;
+          await persistIdMap();
+          patchLocalPlaylist(localId, { serverId: created.id });
+          return localId;
+        }
+      }
+      finally {
+        creatingRef.current.delete(localId);
       }
     }
     await pendingPlaylistOps.enqueue({ type: 'create', localId, name: trimmed, coverUrl, ts: Date.now() });
     return localId;
-  }, [isOnline, persistIdMap, persistMeta, persistSongs, token]);
+  }, [isOnline, patchLocalPlaylist, persistIdMap, persistMeta, persistSongs, token]);
 
   const applyMetaPatch = useCallback(async (
     playlistId: string,
@@ -509,48 +608,51 @@ export const usePlaylists = () => {
     await applyMetaPatch(playlistId, { name: name.trim() });
   }, [applyMetaPatch]);
 
-  const setPlaylistCover = useCallback(async (playlistId: string, coverUrl: string | null) => {
-    if (playlistsRef.current.find((p) => p.id === playlistId)?.readOnly) return;
-    const isLocalImage =
-      !!coverUrl && !/^https?:\/\//i.test(coverUrl) &&
-      (coverUrl.startsWith('file:') || coverUrl.startsWith('content:') || coverUrl.startsWith('/'));
+  const setPlaylistCover = useCallback(async (
+    playlistId: string,
+    coverUrl: string | null,
+  ): Promise<CoverChangeResult> => {
+    const playlist = playlistsRef.current.find((p) => p.id === playlistId);
+    if (!playlist || playlist.readOnly) return 'rejected';
 
-    setPlaylists((list) => {
-      const next = list.map((p) => (p.id === playlistId ? { ...p, coverUrl } : p));
-      persistMeta(next);
-      return next;
-    });
+    // A new choice supersedes any upload still waiting in the queue.
+    const superseded = await pendingPlaylistOps.removeWhere(
+      (op) => op.type === 'uploadCover' && op.localId === playlistId,
+    );
+    superseded.forEach((op) => op.type === 'uploadCover' && releasePickedCover(op.localUri));
 
     const sid = serverIdOf(playlistId);
+    const syncId = token && isOnline ? sid : undefined;
 
     if (coverUrl === null) {
-      if (sid != null && token && isOnline) {
-        const ok = await playlistsService.deleteCover(sid);
-        if (ok) return;
-      }
+      patchLocalPlaylist(playlistId, { coverUrl: null });
+      if (syncId != null && (await playlistsService.deleteCover(syncId))) return 'saved';
       await pendingPlaylistOps.enqueue({ type: 'update', localId: playlistId, patch: { coverUrl: null }, ts: Date.now() });
-      return;
+      return 'queued';
     }
 
-    if (isLocalImage && sid != null && token && isOnline) {
-      const remoteUrl = await playlistsService.uploadCover(sid, coverUrl);
-      if (remoteUrl) {
-        setPlaylists((list) => {
-          const next = list.map((p) => (p.id === playlistId ? { ...p, coverUrl: remoteUrl } : p));
-          persistMeta(next);
-          return next;
-        });
-        return;
+    if (!isLocalImageUri(coverUrl)) {
+      await applyMetaPatch(playlistId, { coverUrl });
+      return 'saved';
+    }
+
+    const previousCover = playlist.coverUrl && !isLocalImageUri(playlist.coverUrl) ? playlist.coverUrl : null;
+    const localUri = await persistPickedCover(coverUrl);
+    patchLocalPlaylist(playlistId, { coverUrl: localUri });
+
+    if (syncId != null) {
+      const result = await playlistsService.uploadCover(syncId, localUri);
+      if (result.status !== 'retry') {
+        const uploaded = result.status === 'uploaded';
+        patchLocalPlaylist(playlistId, { coverUrl: uploaded ? result.coverUrl : previousCover });
+        releasePickedCover(localUri);
+        return uploaded ? 'saved' : 'rejected';
       }
     }
 
-    await pendingPlaylistOps.enqueue({
-      type: 'uploadCover',
-      localId: playlistId,
-      localUri: coverUrl,
-      ts: Date.now(),
-    });
-  }, [isOnline, persistMeta, serverIdOf, token]);
+    await pendingPlaylistOps.enqueue({ type: 'uploadCover', localId: playlistId, localUri, ts: Date.now() });
+    return 'queued';
+  }, [applyMetaPatch, isOnline, patchLocalPlaylist, serverIdOf, token]);
 
   const setPlaylistDownload = useCallback(async (playlistId: string, enabled: boolean) => {
     const p = playlistsRef.current.find((x) => x.id === playlistId);
@@ -586,7 +688,14 @@ export const usePlaylists = () => {
       return;
     }
 
-    if (sid != null && token && isOnline) {
+    if (sid == null) {
+      // The server never received it: just drop everything still queued for it.
+      const dropped = await pendingPlaylistOps.removeWhere((op) => 'localId' in op && op.localId === playlistId);
+      dropped.forEach((op) => op.type === 'uploadCover' && releasePickedCover(op.localUri));
+      return;
+    }
+
+    if (token && isOnline) {
       const ok = await playlistsService.remove(sid);
       if (ok) return;
     }

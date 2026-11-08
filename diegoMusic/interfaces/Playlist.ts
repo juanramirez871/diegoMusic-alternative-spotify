@@ -90,3 +90,14 @@ export type PendingPlaylistOp =
   | { type: 'removeSong'; localId: string; songId: string; ts: number }
   | { type: 'reorderSongs'; localId: string; order: string[]; ts: number }
   | { type: 'uploadCover'; localId: string; localUri: string; ts: number };
+
+/** Outcome of uploading a playlist cover image. */
+export type CoverUploadResult =
+  | { status: 'uploaded'; coverUrl: string }
+  /** Network, server or session problem: keep it queued and try again later. */
+  | { status: 'retry' }
+  /** The server refused the image itself (or it no longer exists): retrying won't help. */
+  | { status: 'rejected' };
+
+/** What happened to a cover change requested from the UI. */
+export type CoverChangeResult = 'saved' | 'queued' | 'rejected';

@@ -4,9 +4,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { PlaylistCover } from '@/components/PlaylistCover';
 import { useLanguage } from '@/context/LanguageContext';
 import type { PlaylistMeta } from '@/interfaces/Playlist';
-
-const webTransition = (value: string) =>
-  ({ transition: value } as Record<string, unknown>);
+import { getPlaylistSubtitle } from '@/utils/playlists';
+import { webTransition } from '@/utils/webStyles';
 
 const CARD_PADDING = 16;
 
@@ -22,11 +21,7 @@ export const PlaylistWebCard: React.FC<Props> = ({ playlist, onPress, width }) =
   const [hovered, setHovered] = useState(false);
   const coverSize = Math.max(0, width - CARD_PADDING * 2);
 
-  const subtitle = playlist.unavailable
-    ? t('playlist.unavailable')
-    : playlist.kind === 'followed' && playlist.owner
-      ? t('playlist.byAuthor', { author: playlist.owner.name })
-      : t('playlist.songCount', { count: playlist.songCount });
+  const subtitle = getPlaylistSubtitle(playlist, t);
 
   return (
     <Pressable

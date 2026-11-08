@@ -1,8 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import apiFetch from './api';
+import apiFetch, { getToken, isPermanentFailure } from './api';
 import { API_URL } from './apiUrl';
+import { authEvents } from './authEvents';
 import type { SongData } from '@/interfaces/Song';
+import { coverFormData } from '@/utils/coverImage';
+import { resolveCoverUrl } from '@/utils/playlistCover';
 import type {
+  CoverUploadResult,
   PlaylistApiMeta,
   PlaylistApiDetail,
   PlaylistVisibility,
@@ -19,6 +22,21 @@ const songBody = (song: SongData) => ({
   channelName: song.channel?.name ?? '',
   channelAvatar: song.channel?.avatar ?? song.channel?.icon ?? '',
 });
+
+/**
+ * Runs a mutation and reports whether it is settled: true once the server applied
+ * it or refused it for good, false when it failed transiently and must be retried.
+ */
+async function settle(label: string, request: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await request();
+    return true;
+  }
+  catch (err) {
+    console.warn(`[Playlists] ${label} failed:`, err);
+    return isPermanentFailure(err);
+  }
+}
 
 export const playlistsService = {
   async fetchAll(): Promise<PlaylistApiMeta[] | null> {
@@ -53,117 +71,82 @@ export const playlistsService = {
     }
   },
 
-  async update(
+  update(
     serverId: number,
     patch: { name?: string; coverUrl?: string | null; downloadEnabled?: boolean; position?: number },
   ): Promise<boolean> {
-    try {
-      await apiFetch(`/playlists/${serverId}`, { method: 'PATCH', body: JSON.stringify(patch) });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] update failed:', err);
-      return false;
-    }
+    return settle('update', () =>
+      apiFetch(`/playlists/${serverId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    );
   },
 
-  async remove(serverId: number): Promise<boolean> {
-    try {
-      await apiFetch(`/playlists/${serverId}`, { method: 'DELETE' });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] remove failed:', err);
-      return false;
-    }
+  remove(serverId: number): Promise<boolean> {
+    return settle('remove', () =>
+      apiFetch(`/playlists/${serverId}`, { method: 'DELETE' }),
+    );
   },
 
-  async reorder(serverIds: number[]): Promise<boolean> {
-    try {
-      await apiFetch('/playlists/reorder', { method: 'PATCH', body: JSON.stringify({ order: serverIds }) });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] reorder failed:', err);
-      return false;
-    }
+  reorder(serverIds: number[]): Promise<boolean> {
+    return settle('reorder', () =>
+      apiFetch('/playlists/reorder', { method: 'PATCH', body: JSON.stringify({ order: serverIds }) }),
+    );
   },
 
-  async addSong(serverId: number, song: SongData): Promise<boolean> {
-    try {
-      await apiFetch(`/playlists/${serverId}/songs`, { method: 'POST', body: JSON.stringify(songBody(song)) });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] addSong failed:', err);
-      return false;
-    }
+  addSong(serverId: number, song: SongData): Promise<boolean> {
+    return settle('addSong', () =>
+      apiFetch(`/playlists/${serverId}/songs`, { method: 'POST', body: JSON.stringify(songBody(song)) }),
+    );
   },
 
-  async removeSong(serverId: number, youtubeId: string): Promise<boolean> {
-    try {
-      await apiFetch(`/playlists/${serverId}/songs/${encodeURIComponent(youtubeId)}`, { method: 'DELETE' });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] removeSong failed:', err);
-      return false;
-    }
+  removeSong(serverId: number, youtubeId: string): Promise<boolean> {
+    return settle('removeSong', () =>
+      apiFetch(`/playlists/${serverId}/songs/${encodeURIComponent(youtubeId)}`, { method: 'DELETE' }),
+    );
   },
 
-  async reorderSongs(serverId: number, youtubeIds: string[]): Promise<boolean> {
-    try {
-      await apiFetch(`/playlists/${serverId}/songs/reorder`, {
+  reorderSongs(serverId: number, youtubeIds: string[]): Promise<boolean> {
+    return settle('reorderSongs', () =>
+      apiFetch(`/playlists/${serverId}/songs/reorder`, {
         method: 'PATCH',
         body: JSON.stringify({ order: youtubeIds }),
-      });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] reorderSongs failed:', err);
-      return false;
-    }
+      }),
+    );
   },
 
-  /**
-   * Uploads a local image as the playlist cover (multipart). Returns the
-   * absolute cover URL from the server, or null on failure.
-   */
-  async uploadCover(serverId: number, localUri: string): Promise<string | null> {
+  /** Uploads a local image (file:, data: or blob: URI) as the playlist cover. */
+  async uploadCover(serverId: number, localUri: string): Promise<CoverUploadResult> {
+    const body = await coverFormData(localUri);
+    if (!body) return { status: 'rejected' };
+
     try {
-      const token = await AsyncStorage.getItem('@auth_token');
-      const name = localUri.split('/').pop() || 'cover.jpg';
-      const ext = (name.split('.').pop() || 'jpg').toLowerCase();
-      const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-
-      const form = new FormData();
-      // React Native FormData file shape.
-      form.append('cover', { uri: localUri, name, type } as any);
-
+      const token = await getToken();
       const res = await fetch(`${API_URL}/playlists/${serverId}/cover`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: form,
+        body,
       });
-      if (!res.ok) return null;
-      const data = await res.json().catch(() => ({}));
-      return data.coverUrl ?? null;
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const coverUrl = resolveCoverUrl(data.coverUrl);
+        return coverUrl ? { status: 'uploaded', coverUrl } : { status: 'retry' };
+      }
+      if (res.status === 401 && token) authEvents.notifySessionExpired();
+      // 400: unsupported or too large image; 404: the playlist no longer exists.
+      return res.status === 400 || res.status === 404 || res.status === 413
+        ? { status: 'rejected' }
+        : { status: 'retry' };
     }
     catch (err) {
       console.warn('[Playlists] uploadCover failed:', err);
-      return null;
+      return { status: 'retry' };
     }
   },
 
-  async deleteCover(serverId: number): Promise<boolean> {
-    try {
-      await apiFetch(`/playlists/${serverId}/cover`, { method: 'DELETE' });
-      return true;
-    }
-    catch (err) {
-      console.warn('[Playlists] deleteCover failed:', err);
-      return false;
-    }
+  deleteCover(serverId: number): Promise<boolean> {
+    return settle('deleteCover', () =>
+      apiFetch(`/playlists/${serverId}/cover`, { method: 'DELETE' }),
+    );
   },
 
   async setVisibility(serverId: number, visibility: PlaylistVisibility): Promise<PlaylistApiMeta | null> {

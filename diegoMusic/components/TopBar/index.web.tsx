@@ -1,132 +1,102 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Modal, Pressable, Text, TextInput, View } from 'react-native';
-
-import { styles, menuStyles } from './styles.web';
+import { useEffect, useState } from 'react';
+import { Image, Pressable, View } from 'react-native';
+import { usePathname, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/IconSymbol';
 import { SearchOverlay } from '@/components/SearchOverlay';
-import { useNetwork } from '@/context/NetworkContext';
-import { useLanguage } from '@/context/LanguageContext';
+import { DEFAULT_USER_AVATAR } from '@/constants/images';
+import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useNetwork } from '@/context/NetworkContext';
 import { usePlayerUI } from '@/context/PlayerContext';
-import storage from '@/services/storage';
-import type { HistoryItem } from '@/interfaces/ui';
+import { CircleButton } from './CircleButton';
+import { SearchBar } from './SearchBar';
+import { UserMenu } from './UserMenu';
+import { useSearchOverlay } from './useSearchOverlay';
+import { styles } from './styles.web';
 
-const RECENT_SEARCHES_KEY = '@recent_searches';
+type Route = '/' | '/search' | '/settings';
+
 export function TopBar() {
-
-  const { isOnline, isNetworkChecked, isApiReachable } = useNetwork();
+  const router = useRouter();
+  const pathname = usePathname();
   const { t } = useLanguage();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { isOnline, isNetworkChecked, isApiReachable } = useNetwork();
   const { isMaximized, setIsMaximized } = usePlayerUI();
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [recentSearches, setRecentSearches] = useState<HistoryItem[]>([]);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const isDisabled = (isNetworkChecked && !isOnline) || !isApiReachable;
+  const search = useSearchOverlay();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const openSearch = async () => {
-    if (isDisabled) return;
-    if (isMaximized) setIsMaximized(false);
-    try {
-      const saved = await storage.getItem(RECENT_SEARCHES_KEY);
-      if (saved) setRecentSearches(JSON.parse(saved));
-    } catch {}
-    setIsSearching(true);
-    Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-  };
+  const isSearchDisabled = (isNetworkChecked && !isOnline) || !isApiReachable;
+  const isHome = pathname === '/' || pathname === '/index';
 
-  const closeSearch = () => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
-      setIsSearching(false);
-      setSearchQuery('');
-    });
-  };
-
+  const { isOpen: isSearchOpen, close: closeSearch } = search;
   useEffect(() => {
-    if (isMaximized && isSearching) closeSearch();
-  }, [isMaximized]);
+    if (isMaximized && isSearchOpen) closeSearch();
+  }, [isMaximized, isSearchOpen, closeSearch]);
 
-  const handleUpdateHistory = async (newHistory: HistoryItem[]) => {
-    setRecentSearches(newHistory);
-    try {
-      await storage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(newHistory));
-    } catch {}
+  const navigate = (route: Route) => {
+    if (search.isOpen) search.close();
+    setIsMaximized(false);
+    router.push(route);
+  };
+
+  const openSearch = () => {
+    if (isSearchDisabled) return;
+    setIsMaximized(false);
+    search.open();
   };
 
   return (
     <>
       <View style={styles.bar}>
-        <View style={styles.left}>
-          <Image
-            source={require('@/assets/images/splash-icon.png')}
-            style={styles.logo}
+        <View style={styles.side}>
+          <Pressable onPress={() => navigate('/')} accessibilityRole="link" accessibilityLabel={t('tabs.home')}>
+            <Image source={require('@/assets/images/favicon.png')} style={styles.logo} />
+          </Pressable>
+        </View>
+
+        <View style={styles.center}>
+          <CircleButton onPress={() => navigate('/')} accessibilityLabel={t('tabs.home')}>
+            {(hovered) => (
+              <IconSymbol
+                name={isHome ? 'house.fill' : 'house'}
+                size={24}
+                color={isHome || hovered ? colors.text : colors.textSubdued}
+              />
+            )}
+          </CircleButton>
+          <SearchBar
+            disabled={isSearchDisabled}
+            isBrowsing={pathname.startsWith('/search')}
+            onOpenSearch={openSearch}
+            onBrowse={() => navigate('/search')}
           />
         </View>
 
-        <Pressable
-          style={[styles.searchBox, isDisabled && styles.searchBoxDisabled]}
-          onPress={openSearch}
-          disabled={isDisabled}
-        >
-          <IconSymbol name="magnifyingglass" size={18} color={isDisabled ? '#666' : '#b3b3b3'} />
-          <TextInput
-            style={styles.input}
-            placeholder={isDisabled ? t('search.placeholderOffline') : t('search.placeholder')}
-            placeholderTextColor={isDisabled ? '#555' : '#b3b3b3'}
-            value=""
-            editable={false}
-            pointerEvents="none"
-          />
-        </Pressable>
-
-        <View style={styles.right}>
-          <Pressable onPress={() => setShowUserMenu(true)}>
-            <Image
-              source={user?.avatar ? { uri: user.avatar } : require('@/assets/images/avatar.jpg')}
-              style={styles.avatar}
-            />
-          </Pressable>
+        <View style={[styles.side, styles.sideEnd]}>
+          <CircleButton onPress={() => setIsUserMenuOpen(true)} accessibilityLabel={user?.name ?? ''}>
+            {() => (
+              <Image source={user?.avatar ? { uri: user.avatar } : DEFAULT_USER_AVATAR} style={styles.avatar} />
+            )}
+          </CircleButton>
         </View>
       </View>
 
-      <Modal
-        transparent
-        visible={showUserMenu}
-        animationType="fade"
-        onRequestClose={() => setShowUserMenu(false)}
-      >
-        <Pressable style={menuStyles.backdrop} onPress={() => setShowUserMenu(false)}>
-          <Pressable style={menuStyles.menu} onPress={e => e.stopPropagation()}>
-            <View style={menuStyles.userInfo}>
-              <Image
-                source={user?.avatar ? { uri: user.avatar } : require('@/assets/images/avatar.jpg')}
-                style={menuStyles.menuAvatar}
-              />
-              <View>
-                <Text style={menuStyles.userName}>{user?.name}</Text>
-                <Text style={menuStyles.userEmail}>{user?.email}</Text>
-              </View>
-            </View>
-            <View style={menuStyles.divider} />
-            <Pressable
-              style={({ pressed }) => [menuStyles.logoutBtn, pressed && menuStyles.logoutBtnPressed]}
-              onPress={() => { setShowUserMenu(false); logout(); }}
-            >
-              <Text style={menuStyles.logoutText}>Cerrar sesión</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <UserMenu
+        visible={isUserMenuOpen}
+        onClose={() => setIsUserMenuOpen(false)}
+        onOpenSettings={() => navigate('/settings')}
+      />
 
       <SearchOverlay
-        isVisible={isSearching}
-        onClose={closeSearch}
-        fadeAnim={fadeAnim}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        recentSearches={recentSearches}
-        setRecentSearches={handleUpdateHistory}
+        isVisible={search.isOpen}
+        onClose={search.close}
+        fadeAnim={search.fadeAnim}
+        searchQuery={search.query}
+        setSearchQuery={search.setQuery}
+        recentSearches={search.recentSearches}
+        setRecentSearches={search.updateRecentSearches}
       />
     </>
   );

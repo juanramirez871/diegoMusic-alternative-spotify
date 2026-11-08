@@ -1,38 +1,19 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, Pressable, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { IconSymbol } from '@/components/IconSymbol';
+import { ModalShell } from '@/components/ModalShell';
 import { usePlayback } from "@/context/PlayerContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { SleepTimerModalProps } from "@/interfaces/player";
-import { styles, SHEET_HEIGHT } from "./styles.web";
+import { styles } from "./styles.web";
 
 export default function SleepTimerModal({ visible, onClose }: SleepTimerModalProps) {
   const { sleepTimer, setSleepTimer } = usePlayback();
   const { t } = useLanguage();
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      translateY.setValue(SHEET_HEIGHT);
-      opacity.setValue(0);
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.timing(translateY, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [visible]);
-
-  const handleClose = () => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: SHEET_HEIGHT, duration: 250, useNativeDriver: true }),
-    ]).start(() => onClose());
-  };
 
   const handleSelectTimer = (minutes: number | null) => {
     setSleepTimer(minutes);
-    handleClose();
+    onClose();
   };
 
   const formatDuration = (minutes: number) => {
@@ -57,38 +38,30 @@ export default function SleepTimerModal({ visible, onClose }: SleepTimerModalPro
     { label: formatDuration(240), value: 240 },
   ];
 
-  if (!visible) return null;
-
   return (
-    <View style={styles.root}>
-      <Animated.View style={[styles.backdrop, { opacity }]}>
-        <Pressable style={{ flex: 1 }} onPress={handleClose} />
-      </Animated.View>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-        <View style={styles.handle} />
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('sleepTimer.title')}</Text>
-          {sleepTimer && (
-            <Text style={styles.subtitle}>{t('sleepTimer.active', { time: formatDuration(sleepTimer) })}</Text>
-          )}
+    <ModalShell visible={visible} onClose={onClose} width={420}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{t('sleepTimer.title')}</Text>
+        {sleepTimer && (
+          <Text style={styles.subtitle}>{t('sleepTimer.active', { time: formatDuration(sleepTimer) })}</Text>
+        )}
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.optionsList}>
+          {timerOptions.map((option) => (
+            <TouchableOpacity key={option.label} style={styles.option} onPress={() => handleSelectTimer(option.value)}>
+              <IconSymbol
+                name={sleepTimer === option.value ? "radio-button-on" : "radio-button-off"}
+                size={24}
+                color={sleepTimer === option.value ? "#2c5af3" : "#fff"}
+              />
+              <Text style={[styles.optionText, sleepTimer === option.value && styles.activeOptionText]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.optionsList}>
-            {timerOptions.map((option) => (
-              <TouchableOpacity key={option.label} style={styles.option} onPress={() => handleSelectTimer(option.value)}>
-                <IconSymbol
-                  name={sleepTimer === option.value ? "radio-button-on" : "radio-button-off"}
-                  size={24}
-                  color={sleepTimer === option.value ? "#2c5af3" : "#fff"}
-                />
-                <Text style={[styles.optionText, sleepTimer === option.value && styles.activeOptionText]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </Animated.View>
-    </View>
+      </ScrollView>
+    </ModalShell>
   );
 }

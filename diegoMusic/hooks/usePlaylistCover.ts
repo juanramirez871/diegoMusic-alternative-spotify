@@ -7,6 +7,7 @@ import {
   cachePlaylistCover,
   localPlaylistCover,
 } from '@/context/player/downloadFiles';
+import { resolveCoverUrl } from '@/utils/playlistCover';
 import { normalizeThumbnailUrl, youtubeIdFromThumb } from '@/utils/thumbnailUrl';
 
 type Store = { thumb: Map<string, string | null>; cover: Map<string, string | null> };
@@ -42,7 +43,8 @@ export const usePlaylistCover = (
   previewThumbnails: string[] | undefined,
 ): ResolvedCover => {
   const { isOnline } = useNetwork();
-  const trimmedCover = typeof coverUrl === 'string' ? coverUrl.trim() : '';
+  // Also repairs URLs persisted with an old host (another LAN IP, http vs https).
+  const trimmedCover = resolveCoverUrl(coverUrl) ?? '';
   const remoteThumbs = (previewThumbnails ?? [])
     .filter(Boolean)
     .slice(0, 4)

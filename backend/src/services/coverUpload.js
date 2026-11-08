@@ -42,3 +42,13 @@ export function deleteCoverFile(coverUrl) {
 export function coverUrlFor(filename) {
   return `/uploads/playlist-covers/${filename}`;
 }
+
+const UPLOADED_COVER_RE = /\/uploads\/playlist-covers\/([\w.-]+)$/;
+
+export function sanitizeCoverUrl(value) {
+  if (typeof value !== 'string') return null;
+  const url = value.trim();
+  const uploaded = url.match(UPLOADED_COVER_RE);
+  if (uploaded) return coverUrlFor(uploaded[1]);
+  return /^https:\/\//i.test(url) ? url : null;
+}

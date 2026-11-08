@@ -1,5 +1,4 @@
 import * as youtubeService from "../services/youtubeService.js";
-import { createReadStream, statSync } from "fs";
 import { Song, Artist } from "../models/index.js";
 
 const AUDIO_URL_TTL_MS = 4 * 60 * 60 * 1000;
@@ -40,41 +39,7 @@ const downloadAudio = async (req, res) => {
       return await youtubeService.streamAudioToResponse(url, res, Number(start), req.headers.range);
     }
 
-    const filePath = cached.path;
-    const fileSize = cached.size;
-    const rangeHeader = req.headers.range;
-
-    if (rangeHeader)
-    {
-      const [startByte, endByte] = rangeHeader
-        .replace("bytes=", "")
-        .split("-")
-        .map(Number);
-
-      const start = startByte || 0;
-      const end   = endByte   || fileSize - 1;
-      const chunkSize = end - start + 1;
-
-      res.writeHead(206, {
-        "Content-Type":   "audio/mp4",
-        "Accept-Ranges":  "bytes",
-        "Content-Range":  `bytes ${start}-${end}/${fileSize}`,
-        "Content-Length": chunkSize,
-      });
-
-      createReadStream(filePath, { start, end }).pipe(res);
-
-    }
-    else {
-      res.writeHead(200, {
-        "Content-Type": "audio/mp4",
-        "Accept-Ranges": "bytes",
-        "Content-Length": fileSize,
-      });
-
-      createReadStream(filePath).pipe(res);
-    }
-
+    youtubeService.serveAudioFile(res, cached.path, req.headers.range);
   }
   catch (error) {
     console.error("Error in downloadAudio:", error);
